@@ -1,0 +1,3452 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Swiss Front-Desk — Hotel Management Application</title>
+
+  <!-- Google Fonts: Plus Jakarta Sans, Inter, JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500;600&family=Plus+Jakarta+Sans:wght@600;700&display=swap"
+    rel="stylesheet"
+  />
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            display: ['"Plus Jakarta Sans"', 'sans-serif'],
+            sans: ['"Inter"', 'sans-serif'],
+            mono: ['"JetBrains Mono"', 'monospace'],
+          },
+          colors: {
+            surface: '#FFFFFF',
+            canvas: '#F8FAFC',
+            ink: '#0F172A',
+            muted: '#475569',
+            borderline: '#E2E8F0',
+            cobalt: {
+              600: '#2563EB',
+              700: '#1D4ED8',
+            },
+          },
+        },
+      },
+    };
+  </script>
+
+  <!-- Lucide Icons CDN -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <style>
+    body {
+      background-color: #F8FAFC;
+      color: #0F172A;
+      font-family: 'Inter', sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    h1, h2, h3, .font-display {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+    }
+
+    .tabular-nums {
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* Subtle custom scrollbars */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #F1F5F9;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #CBD5E1;
+      border-radius: 9999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #94A3B8;
+    }
+
+    /* Print styling: hide entire app UI and render only formal invoice */
+    @media print {
+      body {
+        background: #FFFFFF !important;
+        color: #0F172A !important;
+        margin: 0 !important;
+        padding: 0 !important;
+      }
+      #app-shell,
+      #modal-root,
+      #toast-container {
+        display: none !important;
+      }
+      #printable-invoice-container {
+        display: block !important;
+        padding: 24px !important;
+      }
+    }
+  </style>
+</head>
+<body class="min-h-screen bg-[#F8FAFC] text-[#0F172A]">
+  <!-- Main Application Shell (hidden when printing) -->
+  <div id="app-shell" class="flex min-h-screen">
+    <!-- Mobile Sidebar Backdrop -->
+    <div
+      id="sidebar-backdrop"
+      onclick="toggleMobileSidebar(false)"
+      class="fixed inset-0 z-30 hidden bg-slate-900/40 transition-opacity lg:hidden"
+    ></div>
+
+    <!-- Left Navigation Sidebar -->
+    <aside
+      id="sidebar"
+      class="fixed inset-y-0 left-0 z-40 flex w-64 -translate-x-full flex-col border-r border-[#E2E8F0] bg-[#FFFFFF] transition-transform duration-150 lg:static lg:translate-x-0"
+    >
+      <!-- Brand Header -->
+      <div class="flex h-16 items-center justify-between border-b border-[#E2E8F0] px-5">
+        <div class="flex items-center gap-2.5">
+          <div class="flex h-9 w-9 items-center justify-center rounded-lg bg-[#2563EB] text-white shadow-sm">
+            <i data-lucide="building-2" class="h-5 w-5"></i>
+          </div>
+          <div class="min-w-0">
+            <div id="sidebar-brand-name" class="truncate font-display text-sm font-bold tracking-tight text-[#0F172A]">Swiss Front-Desk</div>
+            <div class="text-[11px] font-medium text-[#475569]">10-Room PMS Edition</div>
+          </div>
+        </div>
+        <button
+          type="button"
+          onclick="toggleMobileSidebar(false)"
+          aria-label="Close sidebar"
+          class="cursor-pointer rounded-md p-1.5 text-[#475569] hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB] lg:hidden"
+        >
+          <i data-lucide="x" class="h-5 w-5"></i>
+        </button>
+      </div>
+
+      <!-- Navigation Links -->
+      <nav class="flex-1 space-y-1 px-3 py-4" aria-label="Main Navigation">
+        <button
+          type="button"
+          data-nav="overview"
+          onclick="switchView('overview')"
+          class="nav-item flex w-full cursor-pointer items-center justify-between rounded-lg px-3 py-2.5 text-left text-sm font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB]"
+        >
+          <span class="flex items-center gap-2.5">
+            <i data-lucide="layout-grid" class="h-4 w-4"></i>
+            <span>Room Overview</span>
+          </span>
+          <span id="nav-empty-badge" class="rounded-full border border-[#A7F3D0] bg-[#ECFDF5] px-2 py-0.5 font-mono text-[11px] font-semibold text-[#10B981] tabular-nums">6</span>
+        </button>
+
+        <button
+          type="button"
+          data-nav="reservations"
+          onclick="switchView('reservations')"
+          class="nav-item flex w-full cursor-pointer items-center justify-between rounded-lg px-3 py-2.5 text-left text-sm font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB]"
+        >
+          <span class="flex items-center gap-2.5">
+            <i data-lucide="calendar-check" class="h-4 w-4"></i>
+            <span>Reservations</span>
+          </span>
+          <span id="nav-active-badge" class="rounded-full border border-[#E2E8F0] bg-slate-50 px-2 py-0.5 font-mono text-[11px] font-semibold text-[#475569] tabular-nums">3</span>
+        </button>
+
+        <button
+          type="button"
+          data-nav="billing"
+          onclick="switchView('billing')"
+          class="nav-item flex w-full cursor-pointer items-center gap-2.5 rounded-lg px-3 py-2.5 text-left text-sm font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB]"
+        >
+          <i data-lucide="receipt" class="h-4 w-4"></i>
+          <span>Bill Calculator</span>
+        </button>
+
+        <button
+          type="button"
+          data-nav="records"
+          onclick="switchView('records')"
+          class="nav-item flex w-full cursor-pointer items-center justify-between rounded-lg px-3 py-2.5 text-left text-sm font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB]"
+        >
+          <span class="flex items-center gap-2.5">
+            <i data-lucide="folder-archive" class="h-4 w-4"></i>
+            <span>Records & Export</span>
+          </span>
+          <span id="nav-records-badge" class="rounded-full border border-[#E2E8F0] bg-slate-50 px-2 py-0.5 font-mono text-[11px] font-semibold text-[#475569] tabular-nums">2</span>
+        </button>
+      </nav>
+
+      <!-- Sidebar Footer: Currency, Settings & Reset -->
+      <div class="space-y-2.5 border-t border-[#E2E8F0] p-4">
+        <div>
+          <div class="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-[#475569]">Display Currency</div>
+          <div class="grid grid-cols-2 rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] p-0.5">
+            <button
+              type="button"
+              id="btn-currency-inr"
+              onclick="setCurrency('INR')"
+              class="cursor-pointer rounded-md py-1.5 text-xs font-semibold transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB]"
+            >
+              INR (&#8377;)
+            </button>
+            <button
+              type="button"
+              id="btn-currency-usd"
+              onclick="setCurrency('USD')"
+              class="cursor-pointer rounded-md py-1.5 text-xs font-semibold transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB]"
+            >
+              USD ($)
+            </button>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onclick="openSettingsModal()"
+          class="flex w-full cursor-pointer items-center justify-center gap-2 rounded-lg border border-[#E2E8F0] bg-[#FFFFFF] px-3 py-2 text-xs font-semibold text-[#0F172A] transition-colors duration-150 hover:border-[#2563EB] hover:text-[#2563EB] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB]"
+        >
+          <i data-lucide="settings" class="h-3.5 w-3.5"></i>
+          <span>Rates & Settings</span>
+        </button>
+
+        <button
+          type="button"
+          onclick="confirmResetDemoData()"
+          class="flex w-full cursor-pointer items-center justify-center gap-2 rounded-lg border border-[#E2E8F0] bg-[#FFFFFF] px-3 py-2 text-xs font-medium text-[#475569] transition-colors duration-150 hover:border-slate-300 hover:bg-slate-50 hover:text-[#0F172A] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB]"
+        >
+          <i data-lucide="rotate-ccw" class="h-3.5 w-3.5"></i>
+          <span>Reset Demo Data</span>
+        </button>
+      </div>
+    </aside>
+
+    <!-- Main Content Column -->
+    <div class="flex min-w-0 flex-1 flex-col">
+      <!-- Top Header Bar -->
+      <header class="sticky top-0 z-20 flex h-16 items-center justify-between border-b border-[#E2E8F0] bg-[#FFFFFF] px-4 sm:px-6">
+        <div class="flex items-center gap-3">
+          <button
+            type="button"
+            onclick="toggleMobileSidebar(true)"
+            aria-label="Open navigation menu"
+            class="cursor-pointer rounded-lg border border-[#E2E8F0] p-2 text-[#475569] hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB] lg:hidden"
+          >
+            <i data-lucide="menu" class="h-5 w-5"></i>
+          </button>
+          <div>
+            <h1 id="header-title" class="font-display text-lg font-bold text-[#0F172A] sm:text-xl">Room Overview</h1>
+            <p id="header-subtitle" class="hidden text-xs text-[#475569] sm:block">Real-time 10-room occupancy grid & empty room checker</p>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2.5">
+          <div class="hidden items-center gap-1.5 rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3 py-1.5 text-xs font-medium text-[#475569] md:flex">
+            <i data-lucide="calendar" class="h-3.5 w-3.5 text-[#475569]"></i>
+            <span id="header-date" class="font-mono tabular-nums"></span>
+          </div>
+          <button
+            type="button"
+            onclick="openReservationModal()"
+            class="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-[#2563EB] px-3.5 py-2 text-xs font-semibold text-white shadow-sm transition-colors duration-150 hover:bg-[#1D4ED8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB] focus-visible:ring-offset-2 sm:text-sm"
+          >
+            <i data-lucide="plus" class="h-4 w-4"></i>
+            <span>New Reservation</span>
+          </button>
+        </div>
+      </header>
+
+      <!-- Active View Container -->
+      <main id="main-content" class="mx-auto w-full max-w-7xl flex-1 p-4 sm:p-6"></main>
+    </div>
+  </div>
+
+  <!-- Modal Root -->
+  <div id="modal-root"></div>
+
+  <!-- Toast Notification Container -->
+  <div
+    id="toast-container"
+    aria-live="polite"
+    class="fixed bottom-4 right-4 z-50 flex max-w-sm flex-col gap-2"
+  ></div>
+
+  <!-- Dedicated Printable Invoice Container (visible ONLY in @media print) -->
+  <div id="printable-invoice-container" class="hidden"></div>
+
+  <script>
+    // =========================================================================
+    // 1. CONSTANTS, SEED DATA & STATE MANAGEMENT
+    // =========================================================================
+    const STORAGE_KEY = 'swiss_frontdesk_pms_v2';
+    const USD_EXCHANGE_RATE = 84; // 1 USD = 84 INR for seamless display conversion
+    const PAYMENT_METHODS = ['UPI', 'Card', 'Cash', 'Bank Transfer'];
+
+    const ROOM_TYPES = [
+      { type: 'Standard Room', defaultRateINR: 2500 },
+      { type: 'Deluxe Room', defaultRateINR: 4200 },
+      { type: 'Executive Suite', defaultRateINR: 6800 },
+      { type: 'Penthouse Suite', defaultRateINR: 9500 },
+    ];
+
+    const ADDON_PRESETS = [
+      { label: 'Room Service', amountINR: 850 },
+      { label: 'Minibar', amountINR: 600 },
+      { label: 'Laundry', amountINR: 450 },
+      { label: 'Airport Transfer', amountINR: 1500 },
+      { label: 'Extra Bed', amountINR: 1000 },
+    ];
+
+    function createDefaultSettings() {
+      return {
+        hotelName: 'Swiss Front-Desk Hotel',
+        address: 'MG Road, Bengaluru',
+        gstin: '29AABCS1429B1Z5',
+        gstLowSlab: 12,
+        gstHighSlab: 18,
+        gstThresholdINR: 7500,
+      };
+    }
+
+    /**
+     * Format a Date object as YYYY-MM-DD in local time.
+     */
+    function toISODate(date) {
+      const d = new Date(date);
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${y}-${m}-${day}`;
+    }
+
+    /**
+     * Return YYYY-MM-DD offset by `days` from today.
+     */
+    function offsetDate(days) {
+      const d = new Date();
+      d.setHours(0, 0, 0, 0);
+      d.setDate(d.getDate() + days);
+      return toISODate(d);
+    }
+
+    /**
+     * Calculate whole nights between two YYYY-MM-DD strings.
+     */
+    function calculateNights(checkIn, checkOut) {
+      if (!checkIn || !checkOut) return 0;
+      const start = new Date(`${checkIn}T00:00:00`);
+      const end = new Date(`${checkOut}T00:00:00`);
+      if (isNaN(start.getTime()) || isNaN(end.getTime())) return 0;
+      const diff = Math.round((end - start) / 86400000);
+      return diff > 0 ? diff : 0;
+    }
+
+    /**
+     * Build initial realistic seed state (10 rooms: 3 occupied, 1 cleaning, 1 maintenance, 5 available,
+     * 1 upcoming booking, 2 recent historical bills, settings, and shift audit log).
+     */
+    function createSeedData() {
+      const rooms = [
+        { id: '101', number: '101', floor: 1, type: 'Standard Room', rateINR: 2500, status: 'occupied' },
+        { id: '102', number: '102', floor: 1, type: 'Standard Room', rateINR: 2500, status: 'available' },
+        { id: '103', number: '103', floor: 1, type: 'Standard Room', rateINR: 2500, status: 'cleaning' },
+        { id: '104', number: '104', floor: 1, type: 'Standard Room', rateINR: 2500, status: 'maintenance' },
+        { id: '105', number: '105', floor: 2, type: 'Deluxe Room', rateINR: 4200, status: 'occupied' },
+        { id: '106', number: '106', floor: 2, type: 'Deluxe Room', rateINR: 4200, status: 'available' },
+        { id: '107', number: '107', floor: 2, type: 'Deluxe Room', rateINR: 4200, status: 'available' },
+        { id: '108', number: '108', floor: 3, type: 'Executive Suite', rateINR: 6800, status: 'occupied' },
+        { id: '109', number: '109', floor: 3, type: 'Executive Suite', rateINR: 6800, status: 'available' },
+        { id: '110', number: '110', floor: 3, type: 'Penthouse Suite', rateINR: 9500, status: 'available' },
+      ];
+
+      const reservations = [
+        {
+          id: 'RES-1006',
+          roomId: '101',
+          roomNumber: '101',
+          roomType: 'Standard Room',
+          nightlyRateINR: 2500,
+          guestName: 'Elena Rostova',
+          phone: '+41 78 902 14 55',
+          email: 'elena.r@example.ch',
+          govId: 'CH-8892014',
+          guestsCount: 2,
+          checkIn: offsetDate(2),
+          checkOut: offsetDate(5),
+          nights: 3,
+          advanceINR: 2500,
+          paymentMethod: 'Card',
+          specialRequests: 'Airport pickup requested; quiet room.',
+          status: 'Upcoming',
+          createdAt: new Date(Date.now() - 3 * 3600000).toISOString(),
+        },
+        {
+          id: 'RES-1003',
+          roomId: '101',
+          roomNumber: '101',
+          roomType: 'Standard Room',
+          nightlyRateINR: 2500,
+          guestName: 'Aarav Mehta',
+          phone: '+91 98450 21490',
+          email: 'aarav.mehta@example.com',
+          govId: 'IND-PASS-88412',
+          guestsCount: 1,
+          checkIn: offsetDate(-2),
+          checkOut: offsetDate(1),
+          nights: 3,
+          advanceINR: 2000,
+          paymentMethod: 'UPI',
+          specialRequests: 'Early morning newspaper and high-speed Wi-Fi desk.',
+          status: 'Checked-In',
+          createdAt: new Date(Date.now() - 2 * 86400000).toISOString(),
+        },
+        {
+          id: 'RES-1004',
+          roomId: '105',
+          roomNumber: '105',
+          roomType: 'Deluxe Room',
+          nightlyRateINR: 4200,
+          guestName: 'Clara Lindholm',
+          phone: '+41 79 442 18 90',
+          email: 'clara.lindholm@example.ch',
+          govId: 'CH-7731904',
+          guestsCount: 2,
+          checkIn: offsetDate(-1),
+          checkOut: offsetDate(3),
+          nights: 4,
+          advanceINR: 5000,
+          paymentMethod: 'Card',
+          specialRequests: 'Quiet floor preferred, feather-free pillows.',
+          status: 'Checked-In',
+          createdAt: new Date(Date.now() - 1 * 86400000).toISOString(),
+        },
+        {
+          id: 'RES-1005',
+          roomId: '108',
+          roomNumber: '108',
+          roomType: 'Executive Suite',
+          nightlyRateINR: 6800,
+          guestName: 'Rohan Deshmukh',
+          phone: '+91 99001 73215',
+          email: 'rohan.d@example.in',
+          govId: 'AADHAAR-XXXX-9104',
+          guestsCount: 2,
+          checkIn: offsetDate(-3),
+          checkOut: offsetDate(0),
+          nights: 3,
+          advanceINR: 6000,
+          paymentMethod: 'Bank Transfer',
+          specialRequests: 'Airport drop-off required on checkout day.',
+          status: 'Checked-In',
+          createdAt: new Date(Date.now() - 3 * 86400000).toISOString(),
+        },
+        {
+          id: 'RES-1001',
+          roomId: '102',
+          roomNumber: '102',
+          roomType: 'Standard Room',
+          nightlyRateINR: 2500,
+          guestName: 'Priya Nair',
+          phone: '+91 97412 55091',
+          email: 'priya.nair@example.com',
+          govId: 'DL-KA01-20194421',
+          guestsCount: 1,
+          checkIn: offsetDate(-6),
+          checkOut: offsetDate(-4),
+          nights: 2,
+          advanceINR: 2000,
+          paymentMethod: 'UPI',
+          specialRequests: 'Late check-in.',
+          status: 'Checked-Out',
+          createdAt: new Date(Date.now() - 6 * 86400000).toISOString(),
+        },
+        {
+          id: 'RES-1002',
+          roomId: '110',
+          roomNumber: '110',
+          roomType: 'Penthouse Suite',
+          nightlyRateINR: 9500,
+          guestName: 'Marcus Vance',
+          phone: '+1 415 890 3321',
+          email: 'm.vance@example.com',
+          govId: 'US-PASS-552198',
+          guestsCount: 3,
+          checkIn: offsetDate(-4),
+          checkOut: offsetDate(-1),
+          nights: 3,
+          advanceINR: 10000,
+          paymentMethod: 'Card',
+          specialRequests: 'Airport transfer and welcome refreshments.',
+          status: 'Checked-Out',
+          createdAt: new Date(Date.now() - 4 * 86400000).toISOString(),
+        },
+      ];
+
+      const bills = [
+        {
+          invoiceId: 'INV-2026-1001',
+          reservationId: 'RES-1001',
+          guestName: 'Priya Nair',
+          phone: '+91 97412 55091',
+          email: 'priya.nair@example.com',
+          roomNumber: '102',
+          roomType: 'Standard Room',
+          checkIn: offsetDate(-6),
+          checkOut: offsetDate(-4),
+          nights: 2,
+          nightlyRateINR: 2500,
+          roomChargeINR: 5000,
+          addons: [
+            { id: 'a1', label: 'Room Service', amountINR: 850 },
+            { id: 'a2', label: 'Laundry', amountINR: 450 },
+          ],
+          addonsTotalINR: 1300,
+          subtotalINR: 6300,
+          discountType: 'flat',
+          discountValue: 0,
+          discountAmountINR: 0,
+          taxPercent: 12,
+          taxAmountINR: 756,
+          grandTotalINR: 7056,
+          advancePaidINR: 2000,
+          balanceDueINR: 5056,
+          paymentMethod: 'UPI',
+          issuedAt: new Date(Date.now() - 4 * 86400000).toISOString(),
+        },
+        {
+          invoiceId: 'INV-2026-1002',
+          reservationId: 'RES-1002',
+          guestName: 'Marcus Vance',
+          phone: '+1 415 890 3321',
+          email: 'm.vance@example.com',
+          roomNumber: '110',
+          roomType: 'Penthouse Suite',
+          checkIn: offsetDate(-4),
+          checkOut: offsetDate(-1),
+          nights: 3,
+          nightlyRateINR: 9500,
+          roomChargeINR: 28500,
+          addons: [
+            { id: 'a3', label: 'Airport Transfer', amountINR: 1500 },
+            { id: 'a4', label: 'Minibar', amountINR: 600 },
+          ],
+          addonsTotalINR: 2100,
+          subtotalINR: 30600,
+          discountType: 'percent',
+          discountValue: 5,
+          discountAmountINR: 1530,
+          taxPercent: 18,
+          taxAmountINR: 5232.6,
+          grandTotalINR: 34302.6,
+          advancePaidINR: 10000,
+          balanceDueINR: 24302.6,
+          paymentMethod: 'Card',
+          issuedAt: new Date(Date.now() - 1 * 86400000).toISOString(),
+        },
+      ];
+
+      const auditLog = [
+        {
+          id: 'log-4',
+          type: 'booking',
+          message: 'Future booking RES-1006 created for Elena Rostova (Room 101, upcoming).',
+          timestamp: new Date(Date.now() - 3 * 3600000).toISOString(),
+        },
+        {
+          id: 'log-3',
+          type: 'housekeeping',
+          message: 'Room 103 marked Cleaning / Dirty after morning departure.',
+          timestamp: new Date(Date.now() - 6 * 3600000).toISOString(),
+        },
+        {
+          id: 'log-2',
+          type: 'checkout',
+          message: 'Checked out Marcus Vance (Room 110) — INV-2026-1002 settled via Card.',
+          timestamp: new Date(Date.now() - 22 * 3600000).toISOString(),
+        },
+        {
+          id: 'log-1',
+          type: 'checkin',
+          message: 'Checked in Clara Lindholm into Room 105 with advance deposit.',
+          timestamp: new Date(Date.now() - 28 * 3600000).toISOString(),
+        },
+      ];
+
+      return {
+        currency: 'INR',
+        settings: createDefaultSettings(),
+        rooms,
+        reservations,
+        bills,
+        auditLog,
+        nextResSeq: 1007,
+        nextInvSeq: 1003,
+      };
+    }
+
+    // Application persistent state
+    let appState = loadState();
+
+    // Ephemeral UI state
+    const uiState = {
+      currentView: 'overview',
+      roomStatusFilter: 'all', // all | available | occupied | cleaning | maintenance
+      roomTypeFilter: 'all',
+      roomSearch: '',
+      reservationStatusFilter: 'all', // all | Checked-In | Upcoming | Checked-Out | Cancelled
+      reservationSearch: '',
+      recordsSearch: '',
+      billing: {
+        mode: 'reservation', // reservation | quick
+        selectedReservationId: null,
+        quickRoomType: 'Standard Room',
+        quickRateINR: 2500,
+        quickNights: 2,
+        quickGuestName: 'Walk-In Guest',
+        quickAdvanceINR: 0,
+        paymentMethod: 'UPI',
+        addons: [],
+        taxPercent: 12,
+        discountType: 'percent', // percent | flat
+        discountValue: 0,
+      },
+    };
+
+    function loadState() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return createSeedData();
+        const parsed = JSON.parse(raw);
+        if (!parsed || !Array.isArray(parsed.rooms) || !Array.isArray(parsed.reservations) || !Array.isArray(parsed.bills)) {
+          return createSeedData();
+        }
+        return {
+          ...createSeedData(),
+          ...parsed,
+          settings: { ...createDefaultSettings(), ...(parsed.settings || {}) },
+          auditLog: Array.isArray(parsed.auditLog) ? parsed.auditLog : [],
+        };
+      } catch (err) {
+        console.error('Failed to load state from localStorage:', err);
+        return createSeedData();
+      }
+    }
+
+    function saveState() {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(appState));
+      } catch (err) {
+        console.error('Failed to persist state:', err);
+        showToast('Unable to save changes to browser storage.', 'error');
+      }
+    }
+
+    /**
+     * Append a timestamped entry to the shift handover audit log.
+     */
+    function logAudit(type, message) {
+      if (!Array.isArray(appState.auditLog)) appState.auditLog = [];
+      appState.auditLog.unshift({
+        id: `log-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        type,
+        message,
+        timestamp: new Date().toISOString(),
+      });
+      if (appState.auditLog.length > 40) {
+        appState.auditLog = appState.auditLog.slice(0, 40);
+      }
+    }
+
+    /**
+     * Return applicable default GST slab based on room nightly tariff.
+     */
+    function getDefaultGstForRate(rateINR) {
+      const s = appState.settings || createDefaultSettings();
+      return Number(rateINR) >= Number(s.gstThresholdINR) ? Number(s.gstHighSlab) : Number(s.gstLowSlab);
+    }
+
+    /**
+     * Check if a room already has an active or upcoming reservation overlapping [checkIn, checkOut).
+     */
+    function findOverlappingReservation(roomId, checkIn, checkOut, excludeResId = null) {
+      if (!roomId || !checkIn || !checkOut) return null;
+      return (
+        appState.reservations.find((r) => {
+          if (r.roomId !== roomId) return false;
+          if (excludeResId && r.id === excludeResId) return false;
+          if (r.status !== 'Checked-In' && r.status !== 'Upcoming') return false;
+          return checkIn < r.checkOut && checkOut > r.checkIn;
+        }) || null
+      );
+    }
+
+    /**
+     * Get the earliest upcoming reservation for a given room.
+     */
+    function getNextUpcomingReservationForRoom(roomId) {
+      const upcoming = appState.reservations
+        .filter((r) => r.roomId === roomId && r.status === 'Upcoming')
+        .sort((a, b) => a.checkIn.localeCompare(b.checkIn));
+      return upcoming[0] || null;
+    }
+
+    function formatRelativeTime(isoStr) {
+      const diffSec = Math.max(0, Math.floor((Date.now() - new Date(isoStr).getTime()) / 1000));
+      if (diffSec < 60) return 'Just now';
+      const mins = Math.floor(diffSec / 60);
+      if (mins < 60) return `${mins}m ago`;
+      const hrs = Math.floor(mins / 60);
+      if (hrs < 24) return `${hrs}h ago`;
+      const days = Math.floor(hrs / 24);
+      return `${days}d ago`;
+    }
+
+    // =========================================================================
+    // 2. CURRENCY & FORMATTING HELPERS
+    // =========================================================================
+    function getCurrencySymbol() {
+      return appState.currency === 'USD' ? '$' : '₹';
+    }
+
+    function toDisplayAmount(amountINR) {
+      const val = Number(amountINR) || 0;
+      if (appState.currency === 'USD') {
+        return val / USD_EXCHANGE_RATE;
+      }
+      return val;
+    }
+
+    function fromDisplayAmount(displayVal) {
+      const val = Number(displayVal) || 0;
+      if (appState.currency === 'USD') {
+        return val * USD_EXCHANGE_RATE;
+      }
+      return val;
+    }
+
+    function formatMoney(amountINR, forceDecimals = false) {
+      const val = toDisplayAmount(amountINR);
+      const isUSD = appState.currency === 'USD';
+      const hasFraction = Math.abs(val - Math.round(val)) > 0.005;
+      const digits = isUSD || forceDecimals || hasFraction ? 2 : 0;
+      const formatted = val.toLocaleString(isUSD ? 'en-US' : 'en-IN', {
+        minimumFractionDigits: digits,
+        maximumFractionDigits: digits,
+      });
+      return `${getCurrencySymbol()}${formatted}`;
+    }
+
+    function formatDateShort(isoStr) {
+      if (!isoStr) return '—';
+      const d = new Date(isoStr.includes('T') ? isoStr : `${isoStr}T00:00:00`);
+      if (isNaN(d.getTime())) return isoStr;
+      return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+    }
+
+    function escapeHTML(str) {
+      return String(str ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    // =========================================================================
+    // 3. UI COMPONENTS: BADGES, TOASTS & MODALS
+    // =========================================================================
+    function renderRoomStatusBadge(status) {
+      if (status === 'available') {
+        return `
+          <span class="inline-flex items-center gap-1.5 rounded-full border border-[#A7F3D0] bg-[#ECFDF5] px-2.5 py-0.5 text-xs font-semibold text-[#10B981]">
+            <i data-lucide="check-circle-2" class="h-3.5 w-3.5"></i>
+            <span>Available</span>
+          </span>`;
+      }
+      if (status === 'occupied') {
+        return `
+          <span class="inline-flex items-center gap-1.5 rounded-full border border-[#FECDD3] bg-[#FFF1F2] px-2.5 py-0.5 text-xs font-semibold text-[#E11D48]">
+            <i data-lucide="user-check" class="h-3.5 w-3.5"></i>
+            <span>Occupied</span>
+          </span>`;
+      }
+      if (status === 'cleaning') {
+        return `
+          <span class="inline-flex items-center gap-1.5 rounded-full border border-sky-200 bg-sky-50 px-2.5 py-0.5 text-xs font-semibold text-sky-700">
+            <i data-lucide="droplets" class="h-3.5 w-3.5"></i>
+            <span>Cleaning</span>
+          </span>`;
+      }
+      return `
+        <span class="inline-flex items-center gap-1.5 rounded-full border border-[#FDE68A] bg-[#FFFBEB] px-2.5 py-0.5 text-xs font-semibold text-[#D97706]">
+          <i data-lucide="wrench" class="h-3.5 w-3.5"></i>
+          <span>Maintenance</span>
+        </span>`;
+    }
+
+    function renderReservationStatusBadge(status) {
+      if (status === 'Checked-In') {
+        return `
+          <span class="inline-flex items-center gap-1.5 rounded-full border border-[#FECDD3] bg-[#FFF1F2] px-2.5 py-0.5 text-xs font-semibold text-[#E11D48]">
+            <i data-lucide="key-round" class="h-3.5 w-3.5"></i>
+            <span>Checked-In</span>
+          </span>`;
+      }
+      if (status === 'Upcoming') {
+        return `
+          <span class="inline-flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-2.5 py-0.5 text-xs font-semibold text-[#2563EB]">
+            <i data-lucide="calendar-clock" class="h-3.5 w-3.5"></i>
+            <span>Upcoming</span>
+          </span>`;
+      }
+      if (status === 'Checked-Out') {
+        return `
+          <span class="inline-flex items-center gap-1.5 rounded-full border border-[#A7F3D0] bg-[#ECFDF5] px-2.5 py-0.5 text-xs font-semibold text-[#10B981]">
+            <i data-lucide="check-check" class="h-3.5 w-3.5"></i>
+            <span>Checked-Out</span>
+          </span>`;
+      }
+      return `
+        <span class="inline-flex items-center gap-1.5 rounded-full border border-[#E2E8F0] bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-[#475569]">
+          <i data-lucide="x-circle" class="h-3.5 w-3.5"></i>
+          <span>Cancelled</span>
+        </span>`;
+    }
+
+    function showToast(message, type = 'success') {
+      const container = document.getElementById('toast-container');
+      const id = `toast-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+      const styles =
+        type === 'error'
+          ? { border: 'border-[#FECDD3]', iconBg: 'bg-[#FFF1F2] text-[#E11D48]', icon: 'alert-circle' }
+          : type === 'info'
+          ? { border: 'border-blue-200', iconBg: 'bg-blue-50 text-[#2563EB]', icon: 'info' }
+          : { border: 'border-[#A7F3D0]', iconBg: 'bg-[#ECFDF5] text-[#10B981]', icon: 'check-circle-2' };
+
+      const el = document.createElement('div');
+      el.id = id;
+      el.className = `flex items-center gap-3 rounded-lg border ${styles.border} bg-[#FFFFFF] px-4 py-3 text-sm text-[#0F172A] shadow-md transition-all duration-150`;
+      el.innerHTML = `
+        <div class="flex h-7 w-7 shrink-0 items-center justify-center rounded-md ${styles.iconBg}">
+          <i data-lucide="${styles.icon}" class="h-4 w-4"></i>
+        </div>
+        <div class="flex-1 text-xs font-medium leading-snug sm:text-sm">${escapeHTML(message)}</div>
+        <button type="button" onclick="document.getElementById('${id}')?.remove()" aria-label="Dismiss notification" class="cursor-pointer rounded p-1 text-[#475569] hover:bg-slate-100">
+          <i data-lucide="x" class="h-3.5 w-3.5"></i>
+        </button>
+      `;
+      container.appendChild(el);
+      lucide.createIcons({ nodes: [el] });
+
+      setTimeout(() => {
+        el.classList.add('opacity-0', 'translate-y-1');
+        setTimeout(() => el.remove(), 180);
+      }, 3600);
+    }
+
+    function closeModal() {
+      document.getElementById('modal-root').innerHTML = '';
+    }
+
+    function openConfirmModal({ title, message, confirmLabel, confirmVariant = 'danger', onConfirm }) {
+      const btnStyle =
+        confirmVariant === 'danger'
+          ? 'bg-[#E11D48] hover:bg-rose-700 focus-visible:ring-[#E11D48]'
+          : 'bg-[#2563EB] hover:bg-[#1D4ED8] focus-visible:ring-[#2563EB]';
+
+      const modalRoot = document.getElementById('modal-root');
+      modalRoot.innerHTML = `
+        <div class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/45 p-4" role="dialog" aria-modal="true">
+          <div class="w-full max-w-md rounded-xl border border-[#E2E8F0] bg-[#FFFFFF] p-6 shadow-xl">
+            <div class="flex items-start gap-3">
+              <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${confirmVariant === 'danger' ? 'bg-[#FFF1F2] text-[#E11D48]' : 'bg-blue-50 text-[#2563EB]'}">
+                <i data-lucide="${confirmVariant === 'danger' ? 'alert-triangle' : 'check-circle-2'}" class="h-5 w-5"></i>
+              </div>
+              <div class="flex-1">
+                <h3 class="font-display text-base font-bold text-[#0F172A]">${escapeHTML(title)}</h3>
+                <p class="mt-1 text-sm text-[#475569]">${escapeHTML(message)}</p>
+              </div>
+            </div>
+            <div class="mt-6 flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onclick="closeModal()"
+                class="cursor-pointer rounded-lg border border-[#E2E8F0] bg-[#FFFFFF] px-4 py-2 text-sm font-medium text-[#475569] transition-colors duration-150 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB]"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                id="confirm-modal-action-btn"
+                class="cursor-pointer rounded-lg px-4 py-2 text-sm font-semibold text-white transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 ${btnStyle}"
+              >
+                ${escapeHTML(confirmLabel)}
+              </button>
+            </div>
+          </div>
+        </div>
+      `;
+      lucide.createIcons({ nodes: [modalRoot] });
+      document.getElementById('confirm-modal-action-btn').addEventListener('click', () => {
+        closeModal();
+        onConfirm();
+      });
+    }
+
+    // =========================================================================
+    // 4. NAVIGATION & GLOBAL CONTROLS
+    // =========================================================================
+    function toggleMobileSidebar(show) {
+      const sidebar = document.getElementById('sidebar');
+      const backdrop = document.getElementById('sidebar-backdrop');
+      if (show) {
+        sidebar.classList.remove('-translate-x-full');
+        backdrop.classList.remove('hidden');
+      } else {
+        sidebar.classList.add('-translate-x-full');
+        backdrop.classList.add('hidden');
+      }
+    }
+
+    function setCurrency(curr) {
+      if (appState.currency === curr) return;
+      appState.currency = curr;
+      saveState();
+      renderApp();
+      showToast(`Display currency switched to ${curr === 'USD' ? 'USD ($)' : 'INR (₹)'}.`, 'info');
+    }
+
+    function switchView(view) {
+      uiState.currentView = view;
+      toggleMobileSidebar(false);
+      renderApp();
+    }
+
+    function confirmResetDemoData() {
+      openConfirmModal({
+        title: 'Reset Demo Data?',
+        message: 'This will restore all 10 rooms, sample reservations, and historical invoices back to their initial defaults. Any custom entries will be cleared.',
+        confirmLabel: 'Reset Data',
+        confirmVariant: 'danger',
+        onConfirm: () => {
+          appState = createSeedData();
+          saveState();
+          uiState.billing.selectedReservationId = null;
+          uiState.billing.addons = [];
+          uiState.billing.discountValue = 0;
+          renderApp();
+          showToast('Demo hotel data has been restored.', 'info');
+        },
+      });
+    }
+
+    function getActiveReservationForRoom(roomId) {
+      return appState.reservations.find((r) => r.roomId === roomId && r.status === 'Checked-In') || null;
+    }
+
+    // =========================================================================
+    // 5. VIEW 1: ROOM OVERVIEW & EMPTY ROOM CHECKER
+    // =========================================================================
+    function renderRoomGridHTML() {
+      const q = uiState.roomSearch.trim().toLowerCase();
+      const filteredRooms = appState.rooms.filter((room) => {
+        if (uiState.roomStatusFilter !== 'all' && room.status !== uiState.roomStatusFilter) return false;
+        if (uiState.roomTypeFilter !== 'all' && room.type !== uiState.roomTypeFilter) return false;
+        if (q) {
+          const activeRes = getActiveReservationForRoom(room.id);
+          const guestMatch = activeRes && activeRes.guestName.toLowerCase().includes(q);
+          const roomMatch = room.number.toLowerCase().includes(q) || room.type.toLowerCase().includes(q);
+          if (!roomMatch && !guestMatch) return false;
+        }
+        return true;
+      });
+
+      if (filteredRooms.length === 0) {
+        return `
+          <div class="flex flex-col items-center justify-center rounded-xl border border-[#E2E8F0] bg-[#FFFFFF] px-6 py-14 text-center shadow-sm">
+            <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-slate-100 text-[#475569]">
+              <i data-lucide="search-x" class="h-6 w-6"></i>
+            </div>
+            <h3 class="mt-3 font-display text-base font-bold text-[#0F172A]">No matching rooms found</h3>
+            <p class="mt-1 text-sm text-[#475569]">Try clearing your status pill, room type filter, or search query.</p>
+            <button type="button" onclick="clearRoomFilters()" class="mt-4 cursor-pointer rounded-lg border border-[#E2E8F0] bg-[#FFFFFF] px-4 py-2 text-xs font-semibold text-[#0F172A] hover:bg-slate-50">
+              Reset Filters
+            </button>
+          </div>
+        `;
+      }
+
+      return `
+        <section class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" aria-label="Hotel Rooms Grid">
+          ${filteredRooms
+            .map((room) => {
+              const activeRes = getActiveReservationForRoom(room.id);
+              const nextUpcoming = getNextUpcomingReservationForRoom(room.id);
+              return `
+                <article class="flex flex-col justify-between rounded-xl border border-[#E2E8F0] bg-[#FFFFFF] p-5 shadow-sm transition-all duration-150 hover:border-slate-300">
+                  <div>
+                    <div class="flex items-start justify-between gap-2">
+                      <div>
+                        <div class="flex items-baseline gap-2">
+                          <span class="font-mono text-xl font-semibold text-[#0F172A] tabular-nums">Room ${room.number}</span>
+                        </div>
+                        <div class="mt-0.5 text-xs font-medium text-[#475569]">Floor ${room.floor} &middot; ${escapeHTML(room.type)}</div>
+                      </div>
+                      ${renderRoomStatusBadge(room.status)}
+                    </div>
+
+                    <div class="mt-4 flex items-baseline justify-between border-y border-[#E2E8F0] py-2.5">
+                      <span class="text-xs font-medium text-[#475569]">Nightly Rate</span>
+                      <span class="font-mono text-sm font-semibold text-[#0F172A] tabular-nums">${formatMoney(room.rateINR)}<span class="font-sans text-[11px] font-normal text-[#475569]"> / night</span></span>
+                    </div>
+
+                    <!-- Occupancy Context -->
+                    <div class="mt-3 space-y-1.5 min-h-[56px]">
+                      ${
+                        room.status === 'occupied' && activeRes
+                          ? `
+                            <div class="rounded-lg bg-[#F8FAFC] p-2.5">
+                              <div class="flex items-center gap-1.5 text-xs font-semibold text-[#0F172A]">
+                                <i data-lucide="user" class="h-3.5 w-3.5 text-[#475569]"></i>
+                                <span class="truncate">${escapeHTML(activeRes.guestName)}</span>
+                              </div>
+                              <div class="mt-1 flex items-center justify-between text-[11px] text-[#475569]">
+                                <span>Check-out:</span>
+                                <span class="font-mono font-medium text-[#0F172A] tabular-nums">${formatDateShort(activeRes.checkOut)}</span>
+                              </div>
+                            </div>
+                          `
+                          : room.status === 'available'
+                          ? `
+                            <div class="flex items-center gap-2 rounded-lg bg-[#ECFDF5]/60 px-2.5 py-2 text-xs text-[#10B981]">
+                              <i data-lucide="sparkles" class="h-3.5 w-3.5 shrink-0"></i>
+                              <span class="font-medium">Inspected & ready for check-in</span>
+                            </div>
+                          `
+                          : room.status === 'cleaning'
+                          ? `
+                            <div class="flex items-center gap-2 rounded-lg bg-sky-50 px-2.5 py-2 text-xs text-sky-700">
+                              <i data-lucide="droplets" class="h-3.5 w-3.5 shrink-0"></i>
+                              <span class="font-medium">Housekeeping required before check-in</span>
+                            </div>
+                          `
+                          : `
+                            <div class="flex items-center gap-2 rounded-lg bg-[#FFFBEB] px-2.5 py-2 text-xs text-[#D97706]">
+                              <i data-lucide="alert-circle" class="h-3.5 w-3.5 shrink-0"></i>
+                              <span class="font-medium">Temporarily offline for upkeep</span>
+                            </div>
+                          `
+                      }
+                      ${
+                        nextUpcoming
+                          ? `
+                            <div class="flex items-center justify-between rounded-md border border-blue-100 bg-blue-50/50 px-2.5 py-1 text-[11px] text-[#2563EB]">
+                              <span class="truncate font-medium">Next: ${escapeHTML(nextUpcoming.guestName)}</span>
+                              <span class="ml-2 shrink-0 font-mono tabular-nums">${formatDateShort(nextUpcoming.checkIn)}</span>
+                            </div>
+                          `
+                          : ''
+                      }
+                    </div>
+                  </div>
+
+                  <!-- Action Buttons -->
+                  <div class="mt-4 flex items-center gap-2">
+                    ${
+                      room.status === 'available'
+                        ? `
+                          <button
+                            type="button"
+                            onclick="openReservationModal('${room.id}')"
+                            class="flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-lg bg-[#2563EB] px-3 py-2 text-xs font-semibold text-white transition-colors duration-150 hover:bg-[#1D4ED8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB]"
+                          >
+                            <i data-lucide="key-round" class="h-3.5 w-3.5"></i>
+                            <span>Reserve / Check-In</span>
+                          </button>
+                          <button
+                            type="button"
+                            onclick="toggleRoomMaintenance('${room.id}', 'maintenance')"
+                            title="Mark room as Maintenance"
+                            class="cursor-pointer rounded-lg border border-[#E2E8F0] bg-[#FFFFFF] p-2 text-[#475569] transition-colors duration-150 hover:border-[#FDE68A] hover:bg-[#FFFBEB] hover:text-[#D97706] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB]"
+                          >
+                            <i data-lucide="wrench" class="h-3.5 w-3.5"></i>
+                          </button>
+                        `
+                        : room.status === 'occupied' && activeRes
+                        ? `
+                          <button
+                            type="button"
+                            onclick="openBillingForReservation('${activeRes.id}')"
+                            class="flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-lg bg-[#2563EB] px-3 py-2 text-xs font-semibold text-white transition-colors duration-150 hover:bg-[#1D4ED8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB]"
+                          >
+                            <i data-lucide="calculator" class="h-3.5 w-3.5"></i>
+                            <span>Calculate Bill</span>
+                          </button>
+                          <button
+                            type="button"
+                            onclick="quickCheckoutFromCard('${activeRes.id}')"
+                            class="cursor-pointer rounded-lg border border-[#E2E8F0] bg-[#FFFFFF] px-2.5 py-2 text-xs font-semibold text-[#0F172A] transition-colors duration-150 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB]"
+                          >
+                            Check Out
+                          </button>
+                        `
+                        : room.status === 'cleaning'
+                        ? `
+                          <button
+                            type="button"
+                            onclick="markRoomClean('${room.id}')"
+                            class="flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs font-semibold text-sky-700 transition-colors duration-150 hover:bg-sky-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB]"
+                          >
+                            <i data-lucide="sparkles" class="h-3.5 w-3.5"></i>
+                            <span>Mark Clean & Available</span>
+                          </button>
+                        `
+                        : `
+                          <button
+                            type="button"
+                            onclick="toggleRoomMaintenance('${room.id}', 'available')"
+                            class="flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-[#A7F3D0] bg-[#ECFDF5] px-3 py-2 text-xs font-semibold text-[#10B981] transition-colors duration-150 hover:bg-emerald-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB]"
+                          >
+                            <i data-lucide="check-circle-2" class="h-3.5 w-3.5"></i>
+                            <span>Mark Available</span>
+                          </button>
+                        `
+                    }
+                  </div>
+                </article>
+              `;
+            })
+            .join('')}
+        </section>
+      `;
+    }
+
+    function renderAnalyticsAndAuditHTML() {
+      // Build 7-day rolling revenue & occupancy metrics
+      const days = [];
+      for (let i = -6; i <= 0; i++) {
+        const iso = offsetDate(i);
+        const dateObj = new Date(`${iso}T00:00:00`);
+        const label = dateObj.toLocaleDateString('en-GB', { weekday: 'short' });
+        const dayNum = dateObj.getDate();
+
+        const dayRevenueINR = appState.bills
+          .filter((b) => toISODate(b.issuedAt) === iso)
+          .reduce((s, b) => s + (Number(b.grandTotalINR) || 0), 0);
+
+        const dayOccupiedCount = appState.reservations.filter(
+          (r) => r.status !== 'Cancelled' && r.checkIn <= iso && r.checkOut > iso
+        ).length;
+
+        days.push({ iso, label, dayNum, dayRevenueINR, dayOccupiedCount });
+      }
+
+      const maxRev = Math.max(1, ...days.map((d) => d.dayRevenueINR));
+      const logIcons = {
+        checkin: { icon: 'key-round', cls: 'bg-[#FFF1F2] text-[#E11D48]' },
+        checkout: { icon: 'check-circle-2', cls: 'bg-[#ECFDF5] text-[#10B981]' },
+        booking: { icon: 'calendar-clock', cls: 'bg-blue-50 text-[#2563EB]' },
+        housekeeping: { icon: 'droplets', cls: 'bg-sky-50 text-sky-700' },
+        maintenance: { icon: 'wrench', cls: 'bg-[#FFFBEB] text-[#D97706]' },
+        cancel: { icon: 'x-circle', cls: 'bg-slate-100 text-[#475569]' },
+        settings: { icon: 'settings', cls: 'bg-slate-100 text-[#0F172A]' },
+      };
+
+      const logs = (appState.auditLog || []).slice(0, 12);
+
+      return `
+        <section class="grid grid-cols-1 gap-5 lg:grid-cols-12" aria-label="Operations Analytics and Shift Activity">
+          <!-- 7-Day Revenue & Occupancy Bar Chart -->
+          <div class="rounded-xl border border-[#E2E8F0] bg-[#FFFFFF] p-5 shadow-sm lg:col-span-7">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <h2 class="font-display text-sm font-bold text-[#0F172A]">7-Day Revenue & Occupancy</h2>
+                <p class="text-xs text-[#475569]">Daily billed revenue (bars) and rooms occupied (badges)</p>
+              </div>
+              <div class="flex items-center gap-3 text-[11px] font-medium text-[#475569]">
+                <span class="inline-flex items-center gap-1.5"><span class="h-2.5 w-2.5 rounded-sm bg-[#2563EB]"></span>Revenue</span>
+                <span class="inline-flex items-center gap-1.5"><span class="h-2.5 w-2.5 rounded-sm bg-emerald-100 border border-[#A7F3D0]"></span>Rooms Occ.</span>
+              </div>
+            </div>
+
+            <div class="mt-5 grid grid-cols-7 items-end gap-2 sm:gap-3" style="height: 170px;">
+              ${days
+                .map((d) => {
+                  const pct = d.dayRevenueINR > 0 ? Math.max(14, Math.round((d.dayRevenueINR / maxRev) * 100)) : 6;
+                  const isToday = d.iso === offsetDate(0);
+                  return `
+                    <div class="flex h-full flex-col items-center justify-end gap-1.5">
+                      <div class="font-mono text-[10px] font-semibold text-[#0F172A] tabular-nums truncate max-w-full" title="${formatMoney(d.dayRevenueINR)}">
+                        ${d.dayRevenueINR > 0 ? formatMoney(d.dayRevenueINR) : '—'}
+                      </div>
+                      <div class="flex w-full flex-1 items-end justify-center">
+                        <div
+                          class="w-full max-w-[36px] rounded-t-md transition-all duration-200 ${
+                            d.dayRevenueINR > 0 ? (isToday ? 'bg-[#2563EB]' : 'bg-blue-500/85') : 'bg-slate-100'
+                          }"
+                          style="height: ${pct}%;"
+                          title="${d.iso}: ${formatMoney(d.dayRevenueINR)} | ${d.dayOccupiedCount}/10 rooms"
+                        ></div>
+                      </div>
+                      <div class="rounded border border-[#A7F3D0] bg-[#ECFDF5] px-1.5 py-0.5 font-mono text-[10px] font-semibold text-[#10B981] tabular-nums">
+                        ${d.dayOccupiedCount}/10
+                      </div>
+                      <div class="text-center leading-tight">
+                        <div class="text-[11px] font-semibold ${isToday ? 'text-[#2563EB]' : 'text-[#0F172A]'}">${d.label}</div>
+                        <div class="font-mono text-[10px] text-[#475569] tabular-nums">${d.dayNum}</div>
+                      </div>
+                    </div>
+                  `;
+                })
+                .join('')}
+            </div>
+          </div>
+
+          <!-- Shift Handover Activity Log -->
+          <div class="flex flex-col rounded-xl border border-[#E2E8F0] bg-[#FFFFFF] p-5 shadow-sm lg:col-span-5">
+            <div class="flex items-center justify-between">
+              <div>
+                <h2 class="font-display text-sm font-bold text-[#0F172A]">Shift Handover Log</h2>
+                <p class="text-xs text-[#475569]">Timestamped front-desk audit trail</p>
+              </div>
+              <span class="rounded-full border border-[#E2E8F0] bg-[#F8FAFC] px-2.5 py-0.5 font-mono text-[11px] font-semibold text-[#475569] tabular-nums">${(appState.auditLog || []).length} events</span>
+            </div>
+
+            <div class="mt-4 max-h-[195px] flex-1 space-y-2.5 overflow-y-auto pr-1">
+              ${
+                logs.length === 0
+                  ? `<div class="py-8 text-center text-xs text-[#475569]">No front-desk events recorded yet.</div>`
+                  : logs
+                      .map((entry) => {
+                        const meta = logIcons[entry.type] || logIcons.settings;
+                        return `
+                          <div class="flex items-start gap-2.5 rounded-lg border border-[#E2E8F0]/80 bg-[#F8FAFC]/70 px-3 py-2">
+                            <div class="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md ${meta.cls}">
+                              <i data-lucide="${meta.icon}" class="h-3.5 w-3.5"></i>
+                            </div>
+                            <div class="min-w-0 flex-1">
+                              <div class="text-xs leading-snug text-[#0F172A]">${escapeHTML(entry.message)}</div>
+                              <div class="mt-0.5 font-mono text-[10px] text-[#475569] tabular-nums">${formatRelativeTime(entry.timestamp)}</div>
+                            </div>
+                          </div>
+                        `;
+                      })
+                      .join('')
+              }
+            </div>
+          </div>
+        </section>
+      `;
+    }
+
+    function renderOverviewView() {
+      const totalRooms = appState.rooms.length;
+      const availableRooms = appState.rooms.filter((r) => r.status === 'available').length;
+      const occupiedRooms = appState.rooms.filter((r) => r.status === 'occupied').length;
+      const cleaningRooms = appState.rooms.filter((r) => r.status === 'cleaning').length;
+      const maintenanceRooms = appState.rooms.filter((r) => r.status === 'maintenance').length;
+      const totalRevenueINR = appState.bills.reduce((sum, b) => sum + (Number(b.grandTotalINR) || 0), 0);
+
+      const pillClasses = (active) =>
+        active
+          ? 'border-[#2563EB] bg-[#2563EB] text-white'
+          : 'border-[#E2E8F0] bg-[#FFFFFF] text-[#475569] hover:bg-slate-50 hover:text-[#0F172A]';
+
+      return `
+        <div class="space-y-6">
+          <!-- Top 4 KPI Cards -->
+          <section class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4" aria-label="Hotel Key Metrics">
+            <div class="rounded-xl border border-[#E2E8F0] bg-[#FFFFFF] p-5 shadow-sm">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-semibold uppercase tracking-wider text-[#475569]">Total Rooms</span>
+                <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100 text-[#0F172A]">
+                  <i data-lucide="door-closed" class="h-4 w-4"></i>
+                </div>
+              </div>
+              <div class="mt-3 font-display text-3xl font-bold text-[#0F172A] tabular-nums">${totalRooms}</div>
+              <div class="mt-1 text-xs text-[#475569]">${cleaningRooms} cleaning &middot; ${maintenanceRooms} maintenance</div>
+            </div>
+
+            <div class="rounded-xl border border-[#A7F3D0] bg-[#FFFFFF] p-5 shadow-sm">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-semibold uppercase tracking-wider text-[#10B981]">Empty / Available</span>
+                <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-[#ECFDF5] text-[#10B981]">
+                  <i data-lucide="check-circle-2" class="h-4 w-4"></i>
+                </div>
+              </div>
+              <div class="mt-3 font-display text-3xl font-bold text-[#10B981] tabular-nums">${availableRooms}</div>
+              <div class="mt-1 text-xs text-[#475569]">Inspected & ready for check-in</div>
+            </div>
+
+            <div class="rounded-xl border border-[#E2E8F0] bg-[#FFFFFF] p-5 shadow-sm">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-semibold uppercase tracking-wider text-[#475569]">Occupied Rooms</span>
+                <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-[#FFF1F2] text-[#E11D48]">
+                  <i data-lucide="users" class="h-4 w-4"></i>
+                </div>
+              </div>
+              <div class="mt-3 font-display text-3xl font-bold text-[#0F172A] tabular-nums">${occupiedRooms}</div>
+              <div class="mt-1 text-xs text-[#475569]">${Math.round((occupiedRooms / totalRooms) * 100)}% current occupancy rate</div>
+            </div>
+
+            <div class="rounded-xl border border-[#E2E8F0] bg-[#FFFFFF] p-5 shadow-sm">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-semibold uppercase tracking-wider text-[#475569]">Total Revenue Collected</span>
+                <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 text-[#2563EB]">
+                  <i data-lucide="wallet" class="h-4 w-4"></i>
+                </div>
+              </div>
+              <div class="mt-3 font-mono text-2xl font-semibold text-[#0F172A] tabular-nums sm:text-3xl">${formatMoney(totalRevenueINR)}</div>
+              <div class="mt-1 text-xs text-[#475569]">From ${appState.bills.length} finalized invoice${appState.bills.length === 1 ? '' : 's'}</div>
+            </div>
+          </section>
+
+          <!-- Instant Filter Bar -->
+          <section class="rounded-xl border border-[#E2E8F0] bg-[#FFFFFF] p-4 shadow-sm">
+            <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <!-- Status Filter Pills -->
+              <div class="flex flex-wrap items-center gap-2">
+                <button type="button" onclick="setRoomStatusFilter('all')" class="cursor-pointer rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB] ${pillClasses(uiState.roomStatusFilter === 'all')}">
+                  All 10
+                </button>
+                <button type="button" onclick="setRoomStatusFilter('available')" class="cursor-pointer rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB] ${pillClasses(uiState.roomStatusFilter === 'available')}">
+                  Empty Only (${availableRooms})
+                </button>
+                <button type="button" onclick="setRoomStatusFilter('occupied')" class="cursor-pointer rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB] ${pillClasses(uiState.roomStatusFilter === 'occupied')}">
+                  Occupied (${occupiedRooms})
+                </button>
+                <button type="button" onclick="setRoomStatusFilter('cleaning')" class="cursor-pointer rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB] ${pillClasses(uiState.roomStatusFilter === 'cleaning')}">
+                  Cleaning (${cleaningRooms})
+                </button>
+                <button type="button" onclick="setRoomStatusFilter('maintenance')" class="cursor-pointer rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB] ${pillClasses(uiState.roomStatusFilter === 'maintenance')}">
+                  Maintenance (${maintenanceRooms})
+                </button>
+              </div>
+
+              <!-- Room Type & Search -->
+              <div class="flex flex-col gap-2.5 sm:flex-row sm:items-center">
+                <select
+                  aria-label="Filter by room type"
+                  onchange="setRoomTypeFilter(this.value)"
+                  class="cursor-pointer rounded-lg border border-[#E2E8F0] bg-[#FFFFFF] px-3 py-2 text-xs font-medium text-[#0F172A] focus:border-[#2563EB] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/20"
+                >
+                  <option value="all" ${uiState.roomTypeFilter === 'all' ? 'selected' : ''}>All Room Types</option>
+                  ${ROOM_TYPES.map(
+                    (rt) => `<option value="${rt.type}" ${uiState.roomTypeFilter === rt.type ? 'selected' : ''}>${rt.type}</option>`
+                  ).join('')}
+                </select>
+
+                <div class="relative">
+                  <i data-lucide="search" class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#475569]"></i>
+                  <input
+                    id="room-search-input"
+                    type="text"
+                    value="${escapeHTML(uiState.roomSearch)}"
+                    oninput="setRoomSearch(this.value)"
+                    placeholder="Search room # or guest..."
+                    class="w-full rounded-lg border border-[#E2E8F0] bg-[#FFFFFF] py-2 pl-9 pr-3 text-xs text-[#0F172A] placeholder:text-slate-400 focus:border-[#2563EB] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/20 sm:w-56"
+                  />
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- 10-Room Swiss Grid (isolated container so search typing never resets focus) -->
+          <div id="room-grid-container">${renderRoomGridHTML()}</div>
+
+          <!-- 7-Day Analytics & Shift Handover Activity Log -->
+          ${renderAnalyticsAndAuditHTML()}
+        </div>
+      `;
+    }
+
+    function setRoomStatusFilter(status) {
+      uiState.roomStatusFilter = status;
+      renderApp();
+    }
+
+    function setRoomTypeFilter(type) {
+      uiState.roomTypeFilter = type;
+      renderApp();
+    }
+
+    function setRoomSearch(val) {
+      uiState.roomSearch = val;
+      const container = document.getElementById('room-grid-container');
+      if (container) {
+        container.innerHTML = renderRoomGridHTML();
+        lucide.createIcons({ nodes: [container] });
+      }
+    }
+
+    function clearRoomFilters() {
+      uiState.roomStatusFilter = 'all';
+      uiState.roomTypeFilter = 'all';
+      uiState.roomSearch = '';
+      renderApp();
+    }
+
+    function toggleRoomMaintenance(roomId, nextStatus) {
+      const room = appState.rooms.find((r) => r.id === roomId);
+      if (!room) return;
+      if (room.status === 'occupied') {
+        showToast('Occupied rooms cannot be switched directly to maintenance.', 'error');
+        return;
+      }
+      room.status = nextStatus;
+      logAudit(
+        'maintenance',
+        nextStatus === 'maintenance'
+          ? `Room ${room.number} placed under Maintenance.`
+          : `Room ${room.number} returned from Maintenance to Available.`
+      );
+      saveState();
+      renderApp();
+      showToast(
+        nextStatus === 'maintenance'
+          ? `Room ${room.number} marked as Maintenance.`
+          : `Room ${room.number} is now Available.`,
+        'info'
+      );
+    }
+
+    function markRoomClean(roomId) {
+      const room = appState.rooms.find((r) => r.id === roomId);
+      if (!room || room.status !== 'cleaning') return;
+      room.status = 'available';
+      logAudit('housekeeping', `Housekeeping cleared Room ${room.number} — now Available.`);
+      saveState();
+      renderApp();
+      showToast(`Room ${room.number} marked Clean & Available for check-in.`, 'success');
+    }
+
+    function quickCheckoutFromCard(reservationId) {
+      const res = appState.reservations.find((r) => r.id === reservationId);
+      if (!res) return;
+      const gst = getDefaultGstForRate(res.nightlyRateINR);
+      const roomCharge = res.nightlyRateINR * res.nights;
+      const tax = (roomCharge * gst) / 100;
+      const total = roomCharge + tax;
+      const advance = Number(res.advanceINR) || 0;
+      const balance = Math.max(0, total - advance);
+
+      openConfirmModal({
+        title: `Quick Check-Out — Room ${res.roomNumber}`,
+        message: `Finalize stay for ${res.guestName} (${res.nights} night${res.nights === 1 ? '' : 's'}) with ${gst}% GST (${formatMoney(total)}, Advance: ${formatMoney(advance)}, Balance Due: ${formatMoney(balance)}) and send Room ${res.roomNumber} to Housekeeping (Cleaning)?`,
+        confirmLabel: 'Confirm Check-Out',
+        confirmVariant: 'primary',
+        onConfirm: () => {
+          finalizeReservationCheckout(res.id, {
+            addons: [],
+            taxPercent: gst,
+            discountType: 'flat',
+            discountValue: 0,
+            paymentMethod: res.paymentMethod || 'UPI',
+          });
+        },
+      });
+    }
+
+    // =========================================================================
+    // 6. VIEW 2: RESERVATIONS MANAGER & NEW RESERVATION MODAL
+    // =========================================================================
+    function renderReservationsTableHTML() {
+      const q = uiState.reservationSearch.trim().toLowerCase();
+      const filtered = appState.reservations.filter((r) => {
+        if (uiState.reservationStatusFilter !== 'all' && r.status !== uiState.reservationStatusFilter) return false;
+        if (q) {
+          const match =
+            r.id.toLowerCase().includes(q) ||
+            r.guestName.toLowerCase().includes(q) ||
+            r.roomNumber.toLowerCase().includes(q) ||
+            (r.phone && r.phone.toLowerCase().includes(q));
+          if (!match) return false;
+        }
+        return true;
+      });
+
+      if (filtered.length === 0) {
+        return `
+          <div class="px-6 py-14 text-center">
+            <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-slate-100 text-[#475569]">
+              <i data-lucide="calendar-x" class="h-6 w-6"></i>
+            </div>
+            <h3 class="mt-3 font-display text-base font-bold text-[#0F172A]">No reservations found</h3>
+            <p class="mt-1 text-sm text-[#475569]">Adjust your filters or create a new guest booking.</p>
+          </div>
+        `;
+      }
+
+      return `
+        <div class="overflow-x-auto">
+          <table class="w-full border-collapse text-left text-sm">
+            <thead>
+              <tr class="border-b border-[#E2E8F0] bg-[#F8FAFC] text-[11px] font-semibold uppercase tracking-wider text-[#475569]">
+                <th class="px-4 py-3">Booking ID</th>
+                <th class="px-4 py-3">Guest</th>
+                <th class="px-4 py-3">Room</th>
+                <th class="px-4 py-3">Stay Dates</th>
+                <th class="px-4 py-3 text-right">Advance</th>
+                <th class="px-4 py-3">Status</th>
+                <th class="px-4 py-3 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-[#E2E8F0]">
+              ${filtered
+                .map((r) => {
+                  const matchingBill = appState.bills.find((b) => b.reservationId === r.id);
+                  const adv = Number(r.advanceINR) || 0;
+                  return `
+                    <tr class="transition-colors duration-150 hover:bg-slate-50/70">
+                      <td class="whitespace-nowrap px-4 py-3.5 font-mono text-xs font-semibold text-[#0F172A] tabular-nums">${escapeHTML(r.id)}</td>
+                      <td class="px-4 py-3.5">
+                        <div class="font-medium text-[#0F172A]">${escapeHTML(r.guestName)}</div>
+                        <div class="text-xs text-[#475569]">${escapeHTML(r.phone)} &middot; ${r.guestsCount} guest${r.guestsCount > 1 ? 's' : ''}</div>
+                      </td>
+                      <td class="whitespace-nowrap px-4 py-3.5">
+                        <div class="font-mono text-xs font-semibold text-[#0F172A] tabular-nums">Room ${escapeHTML(r.roomNumber)}</div>
+                        <div class="text-xs text-[#475569]">${escapeHTML(r.roomType)}</div>
+                      </td>
+                      <td class="whitespace-nowrap px-4 py-3.5 font-mono text-xs text-[#0F172A] tabular-nums">
+                        <div>${formatDateShort(r.checkIn)} &rarr; ${formatDateShort(r.checkOut)}</div>
+                        <div class="text-[11px] text-[#475569]">${r.nights} night${r.nights === 1 ? '' : 's'}</div>
+                      </td>
+                      <td class="whitespace-nowrap px-4 py-3.5 text-right font-mono text-xs tabular-nums">
+                        ${
+                          adv > 0
+                            ? `<div class="font-semibold text-[#10B981]">${formatMoney(adv)}</div><div class="font-sans text-[10px] text-[#475569]">${escapeHTML(r.paymentMethod || 'UPI')}</div>`
+                            : `<span class="text-[#475569]">—</span>`
+                        }
+                      </td>
+                      <td class="whitespace-nowrap px-4 py-3.5">${renderReservationStatusBadge(r.status)}</td>
+                      <td class="whitespace-nowrap px-4 py-3.5 text-right">
+                        <div class="inline-flex items-center justify-end gap-1.5">
+                          ${
+                            r.status === 'Checked-In'
+                              ? `
+                                <button
+                                  type="button"
+                                  onclick="openBillingForReservation('${r.id}')"
+                                  class="inline-flex cursor-pointer items-center gap-1 rounded-lg bg-[#2563EB] px-2.5 py-1.5 text-xs font-semibold text-white transition-colors duration-150 hover:bg-[#1D4ED8]"
+                                >
+                                  <i data-lucide="receipt" class="h-3.5 w-3.5"></i>
+                                  <span>Bill & Check-Out</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onclick="confirmCancelReservation('${r.id}')"
+                                  class="cursor-pointer rounded-lg border border-[#FECDD3] bg-[#FFF1F2] px-2.5 py-1.5 text-xs font-semibold text-[#E11D48] transition-colors duration-150 hover:bg-rose-100"
+                                >
+                                  Cancel
+                                </button>
+                              `
+                              : r.status === 'Upcoming'
+                              ? `
+                                <button
+                                  type="button"
+                                  onclick="checkInUpcomingReservation('${r.id}')"
+                                  class="inline-flex cursor-pointer items-center gap-1 rounded-lg bg-[#2563EB] px-2.5 py-1.5 text-xs font-semibold text-white transition-colors duration-150 hover:bg-[#1D4ED8]"
+                                >
+                                  <i data-lucide="key-round" class="h-3.5 w-3.5"></i>
+                                  <span>Check-In Now</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onclick="confirmCancelReservation('${r.id}')"
+                                  class="cursor-pointer rounded-lg border border-[#FECDD3] bg-[#FFF1F2] px-2.5 py-1.5 text-xs font-semibold text-[#E11D48] transition-colors duration-150 hover:bg-rose-100"
+                                >
+                                  Cancel
+                                </button>
+                              `
+                              : matchingBill
+                              ? `
+                                <button
+                                  type="button"
+                                  onclick="openInvoiceModal('${matchingBill.invoiceId}')"
+                                  class="inline-flex cursor-pointer items-center gap-1 rounded-lg border border-[#E2E8F0] bg-[#FFFFFF] px-2.5 py-1.5 text-xs font-semibold text-[#0F172A] transition-colors duration-150 hover:bg-slate-50"
+                                >
+                                  <i data-lucide="file-text" class="h-3.5 w-3.5"></i>
+                                  <span>View Invoice</span>
+                                </button>
+                              `
+                              : `<span class="text-xs text-[#475569]">—</span>`
+                          }
+                        </div>
+                      </td>
+                    </tr>
+                  `;
+                })
+                .join('')}
+            </tbody>
+          </table>
+        </div>
+      `;
+    }
+
+    function renderReservationsView() {
+      const counts = {
+        all: appState.reservations.length,
+        'Checked-In': appState.reservations.filter((r) => r.status === 'Checked-In').length,
+        Upcoming: appState.reservations.filter((r) => r.status === 'Upcoming').length,
+        'Checked-Out': appState.reservations.filter((r) => r.status === 'Checked-Out').length,
+        Cancelled: appState.reservations.filter((r) => r.status === 'Cancelled').length,
+      };
+
+      const pillClasses = (active) =>
+        active
+          ? 'border-[#2563EB] bg-[#2563EB] text-white'
+          : 'border-[#E2E8F0] bg-[#FFFFFF] text-[#475569] hover:bg-slate-50 hover:text-[#0F172A]';
+
+      return `
+        <div class="space-y-5">
+          <!-- Controls Bar -->
+          <div class="flex flex-col gap-3 rounded-xl border border-[#E2E8F0] bg-[#FFFFFF] p-4 shadow-sm lg:flex-row lg:items-center lg:justify-between">
+            <div class="flex flex-wrap items-center gap-2">
+              <button type="button" onclick="setResFilter('all')" class="cursor-pointer rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors duration-150 ${pillClasses(uiState.reservationStatusFilter === 'all')}">
+                All (${counts.all})
+              </button>
+              <button type="button" onclick="setResFilter('Checked-In')" class="cursor-pointer rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors duration-150 ${pillClasses(uiState.reservationStatusFilter === 'Checked-In')}">
+                Checked-In (${counts['Checked-In']})
+              </button>
+              <button type="button" onclick="setResFilter('Upcoming')" class="cursor-pointer rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors duration-150 ${pillClasses(uiState.reservationStatusFilter === 'Upcoming')}">
+                Upcoming (${counts.Upcoming})
+              </button>
+              <button type="button" onclick="setResFilter('Checked-Out')" class="cursor-pointer rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors duration-150 ${pillClasses(uiState.reservationStatusFilter === 'Checked-Out')}">
+                Checked-Out (${counts['Checked-Out']})
+              </button>
+              <button type="button" onclick="setResFilter('Cancelled')" class="cursor-pointer rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors duration-150 ${pillClasses(uiState.reservationStatusFilter === 'Cancelled')}">
+                Cancelled (${counts.Cancelled})
+              </button>
+            </div>
+
+            <div class="flex flex-col gap-2.5 sm:flex-row sm:items-center">
+              <div class="relative">
+                <i data-lucide="search" class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#475569]"></i>
+                <input
+                  id="res-search-input"
+                  type="text"
+                  value="${escapeHTML(uiState.reservationSearch)}"
+                  oninput="setResSearch(this.value)"
+                  placeholder="Search booking ID, guest, room..."
+                  class="w-full rounded-lg border border-[#E2E8F0] bg-[#FFFFFF] py-2 pl-9 pr-3 text-xs text-[#0F172A] placeholder:text-slate-400 focus:border-[#2563EB] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/20 sm:w-64"
+                />
+              </div>
+              <button
+                type="button"
+                onclick="openReservationModal()"
+                class="inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-lg bg-[#2563EB] px-3.5 py-2 text-xs font-semibold text-white transition-colors duration-150 hover:bg-[#1D4ED8]"
+              >
+                <i data-lucide="plus" class="h-4 w-4"></i>
+                <span>New Reservation</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Reservations Table (isolated container so search typing never resets focus) -->
+          <div id="reservations-table-container" class="overflow-hidden rounded-xl border border-[#E2E8F0] bg-[#FFFFFF] shadow-sm">
+            ${renderReservationsTableHTML()}
+          </div>
+        </div>
+      `;
+    }
+
+    function setResFilter(status) {
+      uiState.reservationStatusFilter = status;
+      renderApp();
+    }
+
+    function setResSearch(val) {
+      uiState.reservationSearch = val;
+      const container = document.getElementById('reservations-table-container');
+      if (container) {
+        container.innerHTML = renderReservationsTableHTML();
+        lucide.createIcons({ nodes: [container] });
+      }
+    }
+
+    function openReservationModal(preselectedRoomId = '') {
+      const bookableRooms = appState.rooms.filter((r) => r.status !== 'maintenance');
+      if (bookableRooms.length === 0) {
+        showToast('All rooms are currently under maintenance.', 'error');
+        return;
+      }
+
+      const firstAvailable = bookableRooms.find((r) => r.status === 'available');
+      const defaultRoomId =
+        preselectedRoomId && bookableRooms.some((r) => r.id === preselectedRoomId)
+          ? preselectedRoomId
+          : firstAvailable
+          ? firstAvailable.id
+          : bookableRooms[0].id;
+
+      const selectedRoomObj = bookableRooms.find((r) => r.id === defaultRoomId);
+      const defaultCheckIn = selectedRoomObj && selectedRoomObj.status === 'available' ? offsetDate(0) : offsetDate(2);
+      const defaultCheckOut = selectedRoomObj && selectedRoomObj.status === 'available' ? offsetDate(2) : offsetDate(4);
+
+      const modalRoot = document.getElementById('modal-root');
+      modalRoot.innerHTML = `
+        <div class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/45 p-4" role="dialog" aria-modal="true" aria-labelledby="res-modal-title">
+          <div class="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-xl border border-[#E2E8F0] bg-[#FFFFFF] shadow-xl">
+            <div class="flex items-center justify-between border-b border-[#E2E8F0] px-6 py-4">
+              <div>
+                <h2 id="res-modal-title" class="font-display text-lg font-bold text-[#0F172A]">New Room Reservation</h2>
+                <p class="text-xs text-[#475569]">Immediate check-in for today or future booking with date-overlap protection.</p>
+              </div>
+              <button type="button" onclick="closeModal()" aria-label="Close modal" class="cursor-pointer rounded-lg p-1.5 text-[#475569] hover:bg-slate-100">
+                <i data-lucide="x" class="h-5 w-5"></i>
+              </button>
+            </div>
+
+            <form id="reservation-form" class="space-y-4 p-6" novalidate>
+              <div id="res-form-error" class="hidden rounded-lg border border-[#FECDD3] bg-[#FFF1F2] px-3.5 py-2.5 text-xs font-medium text-[#E11D48]"></div>
+
+              <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div class="sm:col-span-2">
+                  <label for="res-guest-name" class="mb-1 block text-xs font-semibold text-[#0F172A]">Guest Full Name <span class="text-[#E11D48]">*</span></label>
+                  <input id="res-guest-name" type="text" required placeholder="e.g., Ananya Sharma" class="w-full rounded-lg border border-[#E2E8F0] px-3 py-2 text-sm text-[#0F172A] focus:border-[#2563EB] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/20" />
+                </div>
+
+                <div>
+                  <label for="res-phone" class="mb-1 block text-xs font-semibold text-[#0F172A]">Phone Number <span class="text-[#E11D48]">*</span></label>
+                  <input id="res-phone" type="tel" required placeholder="+91 98765 43210" class="w-full rounded-lg border border-[#E2E8F0] px-3 py-2 text-sm text-[#0F172A] focus:border-[#2563EB] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/20" />
+                </div>
+
+                <div>
+                  <label for="res-email" class="mb-1 block text-xs font-semibold text-[#0F172A]">Email Address</label>
+                  <input id="res-email" type="email" placeholder="guest@example.com" class="w-full rounded-lg border border-[#E2E8F0] px-3 py-2 text-sm text-[#0F172A] focus:border-[#2563EB] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/20" />
+                </div>
+
+                <div>
+                  <label for="res-gov-id" class="mb-1 block text-xs font-semibold text-[#0F172A]">Gov ID / Passport No. <span class="text-[#E11D48]">*</span></label>
+                  <input id="res-gov-id" type="text" required placeholder="Passport / Aadhaar / DL" class="w-full rounded-lg border border-[#E2E8F0] px-3 py-2 font-mono text-sm text-[#0F172A] focus:border-[#2563EB] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/20" />
+                </div>
+
+                <div>
+                  <label for="res-guests" class="mb-1 block text-xs font-semibold text-[#0F172A]">Number of Guests</label>
+                  <input id="res-guests" type="number" min="1" max="6" value="1" class="w-full rounded-lg border border-[#E2E8F0] px-3 py-2 font-mono text-sm text-[#0F172A] focus:border-[#2563EB] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/20" />
+                </div>
+
+                <div class="sm:col-span-2">
+                  <label for="res-room" class="mb-1 block text-xs font-semibold text-[#0F172A]">Select Room <span class="text-[#E11D48]">*</span></label>
+                  <select id="res-room" onchange="updateReservationPreview()" class="w-full cursor-pointer rounded-lg border border-[#E2E8F0] bg-[#FFFFFF] px-3 py-2 text-sm text-[#0F172A] focus:border-[#2563EB] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/20">
+                    ${bookableRooms
+                      .map((r) => {
+                        const statusTag = r.status === 'available' ? 'Available Today' : r.status === 'cleaning' ? 'Cleaning Today' : 'Occupied Today (Future Dates OK)';
+                        return `<option value="${r.id}" ${r.id === defaultRoomId ? 'selected' : ''}>Room ${r.number} — ${r.type} · ${formatMoney(r.rateINR)}/night (${statusTag})</option>`;
+                      })
+                      .join('')}
+                  </select>
+                </div>
+
+                <div>
+                  <label for="res-checkin" class="mb-1 block text-xs font-semibold text-[#0F172A]">Check-In Date <span class="text-[#E11D48]">*</span></label>
+                  <input id="res-checkin" type="date" value="${defaultCheckIn}" onchange="updateReservationPreview()" class="w-full rounded-lg border border-[#E2E8F0] px-3 py-2 font-mono text-sm text-[#0F172A] focus:border-[#2563EB] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/20" />
+                </div>
+
+                <div>
+                  <label for="res-checkout" class="mb-1 block text-xs font-semibold text-[#0F172A]">Check-Out Date <span class="text-[#E11D48]">*</span></label>
+                  <input id="res-checkout" type="date" value="${defaultCheckOut}" onchange="updateReservationPreview()" class="w-full rounded-lg border border-[#E2E8F0] px-3 py-2 font-mono text-sm text-[#0F172A] focus:border-[#2563EB] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/20" />
+                </div>
+
+                <div>
+                  <label for="res-advance" class="mb-1 block text-xs font-semibold text-[#0F172A]">Advance / Security Deposit (${getCurrencySymbol()})</label>
+                  <input id="res-advance" type="number" min="0" step="any" value="0" oninput="updateReservationPreview()" class="w-full rounded-lg border border-[#E2E8F0] px-3 py-2 font-mono text-sm text-[#0F172A] focus:border-[#2563EB] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/20" />
+                </div>
+
+                <div>
+                  <label for="res-payment-method" class="mb-1 block text-xs font-semibold text-[#0F172A]">Payment Mode</label>
+                  <select id="res-payment-method" class="w-full cursor-pointer rounded-lg border border-[#E2E8F0] bg-[#FFFFFF] px-3 py-2 text-sm text-[#0F172A] focus:border-[#2563EB] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/20">
+                    ${PAYMENT_METHODS.map((pm) => `<option value="${pm}">${pm}</option>`).join('')}
+                  </select>
+                </div>
+
+                <div class="sm:col-span-2">
+                  <label for="res-notes" class="mb-1 block text-xs font-semibold text-[#0F172A]">Special Requests / Notes</label>
+                  <textarea id="res-notes" rows="2" placeholder="Optional preferences, late arrival, dietary notes..." class="w-full rounded-lg border border-[#E2E8F0] px-3 py-2 text-sm text-[#0F172A] focus:border-[#2563EB] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/20"></textarea>
+                </div>
+              </div>
+
+              <!-- Live Room Estimate & Date-Overlap Conflict Box -->
+              <div id="res-estimate-box" class="flex flex-col justify-between gap-2 rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-4 py-3 sm:flex-row sm:items-center"></div>
+
+              <div class="flex items-center justify-end gap-2.5 border-t border-[#E2E8F0] pt-4">
+                <button type="button" onclick="closeModal()" class="cursor-pointer rounded-lg border border-[#E2E8F0] bg-[#FFFFFF] px-4 py-2 text-sm font-medium text-[#475569] hover:bg-slate-50">
+                  Cancel
+                </button>
+                <button type="submit" id="res-submit-btn" class="inline-flex cursor-pointer items-center gap-1.5 rounded-lg bg-[#2563EB] px-4 py-2 text-sm font-semibold text-white transition-colors duration-150 hover:bg-[#1D4ED8]">
+                  <i data-lucide="check" class="h-4 w-4"></i>
+                  <span>Confirm Reservation</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      `;
+
+      lucide.createIcons({ nodes: [modalRoot] });
+      updateReservationPreview();
+      document.getElementById('reservation-form').addEventListener('submit', handleCreateReservation);
+    }
+
+    function updateReservationPreview() {
+      const box = document.getElementById('res-estimate-box');
+      if (!box) return;
+      const roomId = document.getElementById('res-room').value;
+      const checkIn = document.getElementById('res-checkin').value;
+      const checkOut = document.getElementById('res-checkout').value;
+      const advDisplay = parseFloat(document.getElementById('res-advance')?.value) || 0;
+      const room = appState.rooms.find((r) => r.id === roomId);
+      const nights = calculateNights(checkIn, checkOut);
+      const todayISO = offsetDate(0);
+
+      if (!room || nights <= 0) {
+        box.innerHTML = `<div class="text-xs font-medium text-[#E11D48]">Check-out date must be strictly after check-in date.</div>`;
+        return;
+      }
+
+      const overlap = findOverlappingReservation(room.id, checkIn, checkOut);
+      if (overlap) {
+        box.innerHTML = `
+          <div class="text-xs font-medium text-[#E11D48]">
+            Date conflict: Room ${room.number} is already booked by ${escapeHTML(overlap.guestName)} (${overlap.id}: ${formatDateShort(overlap.checkIn)} &rarr; ${formatDateShort(overlap.checkOut)}).
+          </div>
+        `;
+        return;
+      }
+
+      const isFuture = checkIn > todayISO;
+      if (!isFuture && room.status !== 'available') {
+        box.innerHTML = `
+          <div class="text-xs font-medium text-[#E11D48]">
+            Room ${room.number} is currently ${room.status}. Choose a future check-in date or mark the room clean & available first.
+          </div>
+        `;
+        return;
+      }
+
+      const estimatedINR = room.rateINR * nights;
+      const advINR = fromDisplayAmount(Math.max(0, advDisplay));
+      const modeBadge = isFuture
+        ? `<span class="rounded bg-blue-50 px-1.5 py-0.5 text-[10px] font-semibold text-[#2563EB]">Upcoming Future Booking</span>`
+        : `<span class="rounded bg-[#ECFDF5] px-1.5 py-0.5 text-[10px] font-semibold text-[#10B981]">Immediate Check-In</span>`;
+
+      box.innerHTML = `
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="text-xs font-semibold text-[#0F172A]">Stay Estimate (${nights} night${nights === 1 ? '' : 's'})</span>
+            ${modeBadge}
+          </div>
+          <div class="mt-0.5 text-[11px] text-[#475569]">Room ${room.number} &middot; ${formatMoney(room.rateINR)} &times; ${nights}${advINR > 0 ? ` · Advance: ${formatMoney(advINR)}` : ''}</div>
+        </div>
+        <div class="font-mono text-lg font-semibold text-[#0F172A] tabular-nums">${formatMoney(estimatedINR)}</div>
+      `;
+    }
+
+    function handleCreateReservation(e) {
+      e.preventDefault();
+      const errorBox = document.getElementById('res-form-error');
+      const guestName = document.getElementById('res-guest-name').value.trim();
+      const phone = document.getElementById('res-phone').value.trim();
+      const email = document.getElementById('res-email').value.trim();
+      const govId = document.getElementById('res-gov-id').value.trim();
+      const guestsCount = Math.max(1, parseInt(document.getElementById('res-guests').value, 10) || 1);
+      const roomId = document.getElementById('res-room').value;
+      const checkIn = document.getElementById('res-checkin').value;
+      const checkOut = document.getElementById('res-checkout').value;
+      const advanceDisplay = Math.max(0, parseFloat(document.getElementById('res-advance').value) || 0);
+      const paymentMethod = document.getElementById('res-payment-method').value || 'UPI';
+      const specialRequests = document.getElementById('res-notes').value.trim();
+
+      const nights = calculateNights(checkIn, checkOut);
+      const room = appState.rooms.find((r) => r.id === roomId);
+      const todayISO = offsetDate(0);
+      const isFuture = checkIn > todayISO;
+
+      if (!guestName || !phone || !govId) {
+        errorBox.textContent = 'Please complete all required fields: Guest Name, Phone Number, and Gov ID.';
+        errorBox.classList.remove('hidden');
+        return;
+      }
+      if (!room || room.status === 'maintenance') {
+        errorBox.textContent = 'Selected room is under maintenance and cannot be booked.';
+        errorBox.classList.remove('hidden');
+        return;
+      }
+      if (nights <= 0) {
+        errorBox.textContent = 'Check-out date must be at least 1 day after Check-in date.';
+        errorBox.classList.remove('hidden');
+        return;
+      }
+
+      const overlap = findOverlappingReservation(room.id, checkIn, checkOut);
+      if (overlap) {
+        errorBox.textContent = `Date conflict with ${overlap.id} (${overlap.guestName}: ${overlap.checkIn} to ${overlap.checkOut}). Pick non-overlapping dates.`;
+        errorBox.classList.remove('hidden');
+        return;
+      }
+
+      if (!isFuture && room.status !== 'available') {
+        errorBox.textContent = `Room ${room.number} is currently "${room.status}" today. Select a future check-in date or mark the room clean first.`;
+        errorBox.classList.remove('hidden');
+        return;
+      }
+
+      const advanceINR = fromDisplayAmount(advanceDisplay);
+      const newRes = {
+        id: `RES-${appState.nextResSeq++}`,
+        roomId: room.id,
+        roomNumber: room.number,
+        roomType: room.type,
+        nightlyRateINR: room.rateINR,
+        guestName,
+        phone,
+        email: email || '—',
+        govId,
+        guestsCount,
+        checkIn,
+        checkOut,
+        nights,
+        advanceINR,
+        paymentMethod,
+        specialRequests,
+        status: isFuture ? 'Upcoming' : 'Checked-In',
+        createdAt: new Date().toISOString(),
+      };
+
+      if (!isFuture) {
+        room.status = 'occupied';
+        logAudit('checkin', `Checked in ${guestName} into Room ${room.number} (${newRes.id})${advanceINR > 0 ? ` with ${formatMoney(advanceINR)} advance` : ''}.`);
+      } else {
+        logAudit('booking', `Future booking ${newRes.id} created for ${guestName} (Room ${room.number}, ${formatDateShort(checkIn)}).`);
+      }
+
+      appState.reservations.unshift(newRes);
+      saveState();
+      closeModal();
+      renderApp();
+      showToast(
+        isFuture
+          ? `Future booking ${newRes.id} confirmed for ${guestName} (Room ${room.number}).`
+          : `Room ${room.number} checked in for ${guestName} (${newRes.id}).`,
+        'success'
+      );
+    }
+
+    function checkInUpcomingReservation(reservationId) {
+      const res = appState.reservations.find((r) => r.id === reservationId);
+      if (!res || res.status !== 'Upcoming') return;
+      const room = appState.rooms.find((r) => r.id === res.roomId);
+      if (!room || room.status !== 'available') {
+        showToast(`Room ${res.roomNumber} must be Clean & Available before checking in ${res.guestName}.`, 'error');
+        return;
+      }
+      res.status = 'Checked-In';
+      room.status = 'occupied';
+      logAudit('checkin', `Checked in upcoming guest ${res.guestName} into Room ${room.number} (${res.id}).`);
+      saveState();
+      renderApp();
+      showToast(`${res.guestName} checked into Room ${room.number}.`, 'success');
+    }
+
+    function confirmCancelReservation(reservationId) {
+      const res = appState.reservations.find((r) => r.id === reservationId);
+      if (!res) return;
+      const wasCheckedIn = res.status === 'Checked-In';
+      openConfirmModal({
+        title: `Cancel Reservation ${res.id}?`,
+        message: wasCheckedIn
+          ? `Cancelling ${res.guestName}'s active stay will free Room ${res.roomNumber} back to Available.`
+          : `Cancel upcoming booking ${res.id} for ${res.guestName} (Room ${res.roomNumber})?`,
+        confirmLabel: 'Cancel Reservation',
+        confirmVariant: 'danger',
+        onConfirm: () => {
+          res.status = 'Cancelled';
+          if (wasCheckedIn) {
+            const room = appState.rooms.find((r) => r.id === res.roomId);
+            if (room) room.status = 'available';
+          }
+          if (uiState.billing.selectedReservationId === res.id) {
+            uiState.billing.selectedReservationId = null;
+          }
+          logAudit('cancel', `Cancelled reservation ${res.id} for ${res.guestName} (Room ${res.roomNumber}).`);
+          saveState();
+          renderApp();
+          showToast(`Reservation ${res.id} cancelled.`, 'info');
+        },
+      });
+    }
+
+    // =========================================================================
+    // 7. VIEW 3: BILL CALCULATOR & CHECKOUT INVOICE
+    // =========================================================================
+    function openBillingForReservation(reservationId) {
+      const res = appState.reservations.find((r) => r.id === reservationId);
+      uiState.billing.mode = 'reservation';
+      uiState.billing.selectedReservationId = reservationId;
+      uiState.billing.addons = [];
+      uiState.billing.taxPercent = res ? getDefaultGstForRate(res.nightlyRateINR) : appState.settings.gstLowSlab;
+      uiState.billing.paymentMethod = (res && res.paymentMethod) || 'UPI';
+      uiState.billing.discountType = 'percent';
+      uiState.billing.discountValue = 0;
+      switchView('billing');
+    }
+
+    function computeCurrentBill() {
+      const b = uiState.billing;
+      const parsedQuickNights = b.quickNights === '' ? 0 : Math.max(0, parseInt(b.quickNights, 10) || 0);
+      const parsedQuickRateINR = b.quickRateINR === '' ? 0 : Math.max(0, Number(b.quickRateINR) || 0);
+      const parsedQuickAdvanceINR = b.quickAdvanceINR === '' ? 0 : Math.max(0, Number(b.quickAdvanceINR) || 0);
+
+      let base = {
+        isReservation: false,
+        reservation: null,
+        guestName: b.quickGuestName || 'Walk-In Guest',
+        phone: '—',
+        email: '—',
+        roomNumber: 'Quick Calc',
+        roomType: b.quickRoomType,
+        checkIn: offsetDate(0),
+        checkOut: offsetDate(Math.max(1, parsedQuickNights)),
+        nights: parsedQuickNights,
+        nightlyRateINR: parsedQuickRateINR,
+        advancePaidINR: parsedQuickAdvanceINR,
+      };
+
+      if (b.mode === 'reservation') {
+        const activeList = appState.reservations.filter((r) => r.status === 'Checked-In');
+        let res = activeList.find((r) => r.id === b.selectedReservationId) || activeList[0] || null;
+        if (res) {
+          b.selectedReservationId = res.id;
+          base = {
+            isReservation: true,
+            reservation: res,
+            guestName: res.guestName,
+            phone: res.phone,
+            email: res.email,
+            roomNumber: res.roomNumber,
+            roomType: res.roomType,
+            checkIn: res.checkIn,
+            checkOut: res.checkOut,
+            nights: res.nights,
+            nightlyRateINR: res.nightlyRateINR,
+            advancePaidINR: Number(res.advanceINR) || 0,
+          };
+        }
+      }
+
+      const roomChargeINR = base.nightlyRateINR * base.nights;
+      const addonsTotalINR = b.addons.reduce((sum, item) => sum + (Number(item.amountINR) || 0), 0);
+      const subtotalINR = roomChargeINR + addonsTotalINR;
+
+      let discountAmountINR = 0;
+      const rawDisc = b.discountValue === '' ? 0 : Math.max(0, parseFloat(b.discountValue) || 0);
+      if (b.discountType === 'percent') {
+        const clampedPct = Math.min(100, rawDisc);
+        discountAmountINR = (subtotalINR * clampedPct) / 100;
+      } else {
+        discountAmountINR = Math.min(subtotalINR, fromDisplayAmount(rawDisc));
+      }
+
+      const taxableINR = Math.max(0, subtotalINR - discountAmountINR);
+      const taxPct = b.taxPercent === '' ? 0 : Math.max(0, parseFloat(b.taxPercent) || 0);
+      const taxAmountINR = (taxableINR * taxPct) / 100;
+      const grandTotalINR = taxableINR + taxAmountINR;
+      const balanceDueINR = Math.max(0, grandTotalINR - base.advancePaidINR);
+
+      return {
+        ...base,
+        roomChargeINR,
+        addons: b.addons,
+        addonsTotalINR,
+        subtotalINR,
+        discountType: b.discountType,
+        discountValue: rawDisc,
+        discountAmountINR,
+        taxPercent: taxPct,
+        taxAmountINR,
+        grandTotalINR,
+        balanceDueINR,
+        paymentMethod: b.paymentMethod || 'UPI',
+      };
+    }
+
+    function renderAddonsListHTML() {
+      const b = uiState.billing;
+      if (b.addons.length === 0) {
+        return `<div class="rounded-lg border border-dashed border-[#E2E8F0] py-4 text-center text-xs text-[#475569]">No extra add-on charges added yet.</div>`;
+      }
+      return `
+        <ul class="divide-y divide-[#E2E8F0] rounded-lg border border-[#E2E8F0]">
+          ${b.addons
+            .map(
+              (item) => `
+                <li class="flex items-center justify-between px-3.5 py-2.5 text-xs">
+                  <span class="font-medium text-[#0F172A]">${escapeHTML(item.label)}</span>
+                  <div class="flex items-center gap-3">
+                    <span class="font-mono font-semibold text-[#0F172A] tabular-nums">${formatMoney(item.amountINR)}</span>
+                    <button type="button" onclick="removeAddon('${item.id}')" aria-label="Remove item" class="cursor-pointer rounded p-1 text-[#475569] hover:bg-[#FFF1F2] hover:text-[#E11D48]">
+                      <i data-lucide="trash-2" class="h-3.5 w-3.5"></i>
+                    </button>
+                  </div>
+                </li>
+              `
+            )
+            .join('')}
+        </ul>
+      `;
+    }
+
+    function renderLiveInvoicePreviewHTML() {
+      const calc = computeCurrentBill();
+      return `
+        <div class="sticky top-22 rounded-xl border border-[#E2E8F0] bg-[#FFFFFF] p-6 shadow-sm">
+          <div class="flex items-start justify-between border-b border-[#E2E8F0] pb-4">
+            <div>
+              <div class="text-[11px] font-semibold uppercase tracking-wider text-[#2563EB]">Live Invoice Preview</div>
+              <h2 class="mt-0.5 font-display text-lg font-bold text-[#0F172A]">${escapeHTML(appState.settings.hotelName)}</h2>
+              <p class="text-xs text-[#475569]">${escapeHTML(calc.guestName)}</p>
+            </div>
+            <div class="text-right">
+              <div class="font-mono text-xs font-semibold text-[#0F172A] tabular-nums">INV-2026-${appState.nextInvSeq}</div>
+              <div class="mt-0.5 font-mono text-[11px] text-[#475569] tabular-nums">${formatDateShort(toISODate(new Date()))}</div>
+            </div>
+          </div>
+
+          <!-- Room & Stay Metadata -->
+          <div class="mt-4 grid grid-cols-2 gap-3 rounded-lg bg-[#F8FAFC] p-3 text-xs">
+            <div>
+              <div class="text-[11px] text-[#475569]">Room</div>
+              <div class="font-mono font-semibold text-[#0F172A]">${calc.isReservation ? `Room ${escapeHTML(calc.roomNumber)}` : 'Quick Estimate'}</div>
+            </div>
+            <div>
+              <div class="text-[11px] text-[#475569]">Payment Mode</div>
+              <div class="font-semibold text-[#0F172A]">${escapeHTML(calc.paymentMethod)}</div>
+            </div>
+            <div>
+              <div class="text-[11px] text-[#475569]">Stay Period</div>
+              <div class="font-mono text-[11px] text-[#0F172A] tabular-nums">${formatDateShort(calc.checkIn)} &rarr; ${formatDateShort(calc.checkOut)}</div>
+            </div>
+            <div>
+              <div class="text-[11px] text-[#475569]">Duration</div>
+              <div class="font-mono font-semibold text-[#0F172A] tabular-nums">${calc.nights} night${calc.nights === 1 ? '' : 's'}</div>
+            </div>
+          </div>
+
+          <!-- Line Items -->
+          <div class="mt-5 space-y-2.5 text-sm">
+            <div class="flex items-center justify-between">
+              <span class="text-[#475569]">Room Charges (${formatMoney(calc.nightlyRateINR)} &times; ${calc.nights})</span>
+              <span class="font-mono font-medium text-[#0F172A] tabular-nums">${formatMoney(calc.roomChargeINR)}</span>
+            </div>
+
+            ${calc.addons
+              .map(
+                (a) => `
+                  <div class="flex items-center justify-between text-xs">
+                    <span class="text-[#475569]">+ ${escapeHTML(a.label)}</span>
+                    <span class="font-mono text-[#0F172A] tabular-nums">${formatMoney(a.amountINR)}</span>
+                  </div>
+                `
+              )
+              .join('')}
+
+            <div class="border-t border-[#E2E8F0] pt-2.5 flex items-center justify-between">
+              <span class="font-medium text-[#0F172A]">Subtotal</span>
+              <span class="font-mono font-medium text-[#0F172A] tabular-nums">${formatMoney(calc.subtotalINR)}</span>
+            </div>
+
+            ${
+              calc.discountAmountINR > 0
+                ? `
+                  <div class="flex items-center justify-between text-xs text-[#10B981]">
+                    <span>Discount ${calc.discountType === 'percent' ? `(${calc.discountValue}%)` : '(Flat)'}</span>
+                    <span class="font-mono font-semibold tabular-nums">-${formatMoney(calc.discountAmountINR)}</span>
+                  </div>
+                `
+                : ''
+            }
+
+            <div class="flex items-center justify-between text-xs text-[#475569]">
+              <span>Tax / GST (${calc.taxPercent}%)</span>
+              <span class="font-mono tabular-nums">${formatMoney(calc.taxAmountINR)}</span>
+            </div>
+
+            <div class="mt-3 flex items-baseline justify-between border-t border-[#E2E8F0] pt-3">
+              <span class="font-display text-sm font-bold text-[#0F172A]">Grand Total</span>
+              <span class="font-mono text-lg font-semibold text-[#0F172A] tabular-nums">${formatMoney(calc.grandTotalINR, true)}</span>
+            </div>
+
+            ${
+              calc.advancePaidINR > 0
+                ? `
+                  <div class="flex items-center justify-between text-xs text-[#10B981]">
+                    <span>Less: Advance / Deposit Paid</span>
+                    <span class="font-mono font-semibold tabular-nums">-${formatMoney(calc.advancePaidINR, true)}</span>
+                  </div>
+                `
+                : ''
+            }
+
+            <div class="flex items-baseline justify-between border-t-2 border-[#0F172A] pt-3">
+              <span class="font-display text-base font-bold text-[#0F172A]">Balance Due</span>
+              <span class="font-mono text-2xl font-semibold text-[#2563EB] tabular-nums">${formatMoney(calc.balanceDueINR, true)}</span>
+            </div>
+          </div>
+
+          <!-- Primary Billing Actions -->
+          <div class="mt-6 space-y-2.5">
+            <button
+              type="button"
+              onclick="completeCheckoutAndSave()"
+              class="flex w-full cursor-pointer items-center justify-center gap-2 rounded-lg bg-[#2563EB] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors duration-150 hover:bg-[#1D4ED8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB] focus-visible:ring-offset-2"
+            >
+              <i data-lucide="check-circle-2" class="h-4 w-4"></i>
+              <span>${calc.isReservation ? 'Complete Checkout & Send to Cleaning' : 'Save Invoice Record'}</span>
+            </button>
+            <button
+              type="button"
+              onclick="printCurrentCalculatorInvoice()"
+              class="flex w-full cursor-pointer items-center justify-center gap-2 rounded-lg border border-[#E2E8F0] bg-[#FFFFFF] px-4 py-2.5 text-sm font-semibold text-[#0F172A] transition-colors duration-150 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB]"
+            >
+              <i data-lucide="printer" class="h-4 w-4"></i>
+              <span>Print / Save PDF Invoice</span>
+            </button>
+          </div>
+        </div>
+      `;
+    }
+
+    function updateBillPreview() {
+      const container = document.getElementById('live-invoice-preview-container');
+      if (container) {
+        container.innerHTML = renderLiveInvoicePreviewHTML();
+        lucide.createIcons({ nodes: [container] });
+      }
+    }
+
+    function updateAddonsList() {
+      const container = document.getElementById('addons-list-container');
+      if (container) {
+        container.innerHTML = renderAddonsListHTML();
+        lucide.createIcons({ nodes: [container] });
+      }
+    }
+
+    function renderBillingView() {
+      const activeReservations = appState.reservations.filter((r) => r.status === 'Checked-In');
+      const b = uiState.billing;
+
+      // Auto-switch to quick mode if no active reservations exist
+      if (b.mode === 'reservation' && activeReservations.length === 0) {
+        b.mode = 'quick';
+      }
+
+      const calc = computeCurrentBill();
+      const quickRateDisplay =
+        b.quickRateINR === '' ? '' : Number(toDisplayAmount(b.quickRateINR).toFixed(2));
+      const quickAdvDisplay =
+        b.quickAdvanceINR === '' ? '' : Number(toDisplayAmount(b.quickAdvanceINR).toFixed(2));
+
+      return `
+        <div class="grid grid-cols-1 gap-6 xl:grid-cols-12">
+          <!-- Left Column: Bill Controls & Itemized Add-Ons -->
+          <div class="space-y-5 xl:col-span-7">
+            <!-- Mode Selector Card -->
+            <section class="rounded-xl border border-[#E2E8F0] bg-[#FFFFFF] p-5 shadow-sm">
+              <div class="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+                <div>
+                  <h2 class="font-display text-base font-bold text-[#0F172A]">Billing Source</h2>
+                  <p class="text-xs text-[#475569]">Bill an active check-in or run a standalone rate estimate.</p>
+                </div>
+                <div class="inline-grid grid-cols-2 rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] p-0.5">
+                  <button
+                    type="button"
+                    onclick="setBillingMode('reservation')"
+                    class="cursor-pointer rounded-md px-3 py-1.5 text-xs font-semibold transition-colors duration-150 ${
+                      b.mode === 'reservation' ? 'bg-[#2563EB] text-white' : 'text-[#475569] hover:text-[#0F172A]'
+                    }"
+                  >
+                    Active Reservation
+                  </button>
+                  <button
+                    type="button"
+                    onclick="setBillingMode('quick')"
+                    class="cursor-pointer rounded-md px-3 py-1.5 text-xs font-semibold transition-colors duration-150 ${
+                      b.mode === 'quick' ? 'bg-[#2563EB] text-white' : 'text-[#475569] hover:text-[#0F172A]'
+                    }"
+                  >
+                    Quick Calculator
+                  </button>
+                </div>
+              </div>
+
+              <div class="mt-4">
+                ${
+                  b.mode === 'reservation'
+                    ? activeReservations.length === 0
+                      ? `<div class="rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] p-3 text-xs text-[#475569]">No active checked-in reservations. Switch to Quick Calculator or create a reservation first.</div>`
+                      : `
+                        <label for="bill-res-select" class="mb-1.5 block text-xs font-semibold text-[#0F172A]">Select Active Guest Reservation</label>
+                        <select
+                          id="bill-res-select"
+                          onchange="selectBillingReservation(this.value)"
+                          class="w-full cursor-pointer rounded-lg border border-[#E2E8F0] bg-[#FFFFFF] px-3 py-2.5 text-sm text-[#0F172A] focus:border-[#2563EB] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/20"
+                        >
+                          ${activeReservations
+                            .map(
+                              (r) =>
+                                `<option value="${r.id}" ${calc.reservation && calc.reservation.id === r.id ? 'selected' : ''}>Room ${r.roomNumber} — ${escapeHTML(r.guestName)} (${r.id} · ${r.nights} night${r.nights > 1 ? 's' : ''})</option>`
+                            )
+                            .join('')}
+                        </select>
+                      `
+                    : `
+                      <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                        <div class="sm:col-span-2">
+                          <label for="quick-guest" class="mb-1 block text-xs font-semibold text-[#0F172A]">Guest / Reference Name</label>
+                          <input id="quick-guest" type="text" value="${escapeHTML(b.quickGuestName)}" oninput="updateQuickField('quickGuestName', this.value)" class="w-full rounded-lg border border-[#E2E8F0] px-3 py-2 text-sm text-[#0F172A] focus:border-[#2563EB] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/20" />
+                        </div>
+                        <div>
+                          <label for="quick-type" class="mb-1 block text-xs font-semibold text-[#0F172A]">Room Category</label>
+                          <select id="quick-type" onchange="updateQuickRoomType(this.value)" class="w-full cursor-pointer rounded-lg border border-[#E2E8F0] bg-[#FFFFFF] px-3 py-2 text-sm text-[#0F172A] focus:border-[#2563EB] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/20">
+                            ${ROOM_TYPES.map((rt) => `<option value="${rt.type}" ${b.quickRoomType === rt.type ? 'selected' : ''}>${rt.type}</option>`).join('')}
+                          </select>
+                        </div>
+                        <div>
+                          <label for="quick-rate" class="mb-1 block text-xs font-semibold text-[#0F172A]">Nightly Rate (${getCurrencySymbol()})</label>
+                          <input id="quick-rate" type="number" min="0" step="any" value="${quickRateDisplay}" oninput="updateQuickRate(this.value)" class="w-full rounded-lg border border-[#E2E8F0] px-3 py-2 font-mono text-sm text-[#0F172A] focus:border-[#2563EB] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/20" />
+                        </div>
+                        <div>
+                          <label for="quick-nights" class="mb-1 block text-xs font-semibold text-[#0F172A]">Nights</label>
+                          <input id="quick-nights" type="number" min="1" max="90" value="${b.quickNights}" oninput="updateQuickField('quickNights', this.value)" class="w-full rounded-lg border border-[#E2E8F0] px-3 py-2 font-mono text-sm text-[#0F172A] focus:border-[#2563EB] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/20" />
+                        </div>
+                        <div>
+                          <label for="quick-advance" class="mb-1 block text-xs font-semibold text-[#0F172A]">Advance Paid (${getCurrencySymbol()})</label>
+                          <input id="quick-advance" type="number" min="0" step="any" value="${quickAdvDisplay}" oninput="updateQuickAdvance(this.value)" class="w-full rounded-lg border border-[#E2E8F0] px-3 py-2 font-mono text-sm text-[#0F172A] focus:border-[#2563EB] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/20" />
+                        </div>
+                      </div>
+                    `
+                }
+              </div>
+            </section>
+
+            <!-- Itemized Add-On Charges -->
+            <section class="rounded-xl border border-[#E2E8F0] bg-[#FFFFFF] p-5 shadow-sm">
+              <h2 class="font-display text-base font-bold text-[#0F172A]">Itemized Add-On Charges</h2>
+              <p class="mt-0.5 text-xs text-[#475569]">Quick-add common hotel services or enter a custom line item.</p>
+
+              <!-- Quick Preset Buttons -->
+              <div class="mt-3 flex flex-wrap gap-2">
+                ${ADDON_PRESETS.map(
+                  (preset, idx) => `
+                    <button
+                      type="button"
+                      onclick="addPresetAddon(${idx})"
+                      class="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-2.5 py-1.5 text-xs font-medium text-[#0F172A] transition-colors duration-150 hover:border-[#2563EB] hover:bg-blue-50/50 hover:text-[#2563EB]"
+                    >
+                      <i data-lucide="plus" class="h-3 w-3"></i>
+                      <span>${escapeHTML(preset.label)}</span>
+                      <span class="font-mono text-[11px] text-[#475569] tabular-nums">(${formatMoney(preset.amountINR)})</span>
+                    </button>
+                  `
+                ).join('')}
+              </div>
+
+              <!-- Custom Add-On Form -->
+              <div class="mt-4 flex flex-col gap-2 sm:flex-row">
+                <input
+                  id="custom-addon-label"
+                  type="text"
+                  placeholder="Custom item (e.g., Spa, Late Checkout)"
+                  class="flex-1 rounded-lg border border-[#E2E8F0] px-3 py-2 text-xs text-[#0F172A] focus:border-[#2563EB] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/20"
+                />
+                <input
+                  id="custom-addon-amount"
+                  type="number"
+                  min="1"
+                  step="any"
+                  placeholder="Amount (${getCurrencySymbol()})"
+                  class="w-full rounded-lg border border-[#E2E8F0] px-3 py-2 font-mono text-xs text-[#0F172A] focus:border-[#2563EB] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/20 sm:w-36"
+                />
+                <button
+                  type="button"
+                  onclick="addCustomAddon()"
+                  class="inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-lg bg-[#0F172A] px-3.5 py-2 text-xs font-semibold text-white transition-colors duration-150 hover:bg-slate-800"
+                >
+                  <i data-lucide="plus-circle" class="h-3.5 w-3.5"></i>
+                  <span>Add</span>
+                </button>
+              </div>
+
+              <!-- Current Add-Ons List (isolated container) -->
+              <div id="addons-list-container" class="mt-4">${renderAddonsListHTML()}</div>
+            </section>
+
+            <!-- Tax, Discount & Payment Controls -->
+            <section class="rounded-xl border border-[#E2E8F0] bg-[#FFFFFF] p-5 shadow-sm">
+              <h2 class="font-display text-base font-bold text-[#0F172A]">Tax, Discount & Payment Mode</h2>
+              <div class="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-3">
+                <div>
+                  <label for="bill-tax-input" class="mb-1 block text-xs font-semibold text-[#0F172A]">Tax / GST (%)</label>
+                  <input
+                    id="bill-tax-input"
+                    type="number"
+                    min="0"
+                    max="50"
+                    step="any"
+                    value="${b.taxPercent}"
+                    oninput="updateBillingTax(this.value)"
+                    class="w-full rounded-lg border border-[#E2E8F0] px-3 py-2 font-mono text-sm text-[#0F172A] focus:border-[#2563EB] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/20"
+                  />
+                </div>
+                <div>
+                  <div class="mb-1 flex items-center justify-between">
+                    <label for="bill-discount-input" class="text-xs font-semibold text-[#0F172A]">Discount</label>
+                    <div class="inline-flex rounded-md border border-[#E2E8F0] bg-[#F8FAFC] p-0.5 text-[11px] font-semibold">
+                      <button id="btn-disc-percent" type="button" onclick="setDiscountType('percent')" class="cursor-pointer rounded px-2 py-0.5 ${b.discountType === 'percent' ? 'bg-[#2563EB] text-white' : 'text-[#475569]'}">%</button>
+                      <button id="btn-disc-flat" type="button" onclick="setDiscountType('flat')" class="cursor-pointer rounded px-2 py-0.5 ${b.discountType === 'flat' ? 'bg-[#2563EB] text-white' : 'text-[#475569]'}">${getCurrencySymbol()}</button>
+                    </div>
+                  </div>
+                  <input
+                    id="bill-discount-input"
+                    type="number"
+                    min="0"
+                    step="any"
+                    value="${b.discountValue}"
+                    oninput="updateBillingDiscount(this.value)"
+                    class="w-full rounded-lg border border-[#E2E8F0] px-3 py-2 font-mono text-sm text-[#0F172A] focus:border-[#2563EB] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/20"
+                  />
+                </div>
+                <div>
+                  <label for="bill-payment-method" class="mb-1 block text-xs font-semibold text-[#0F172A]">Settlement Mode</label>
+                  <select
+                    id="bill-payment-method"
+                    onchange="updateBillingPaymentMethod(this.value)"
+                    class="w-full cursor-pointer rounded-lg border border-[#E2E8F0] bg-[#FFFFFF] px-3 py-2 text-sm text-[#0F172A] focus:border-[#2563EB] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/20"
+                  >
+                    ${PAYMENT_METHODS.map((pm) => `<option value="${pm}" ${b.paymentMethod === pm ? 'selected' : ''}>${pm}</option>`).join('')}
+                  </select>
+                </div>
+              </div>
+            </section>
+          </div>
+
+          <!-- Right Column: Live Swiss-Minimalist Invoice Summary (isolated for non-destructive live updates) -->
+          <div id="live-invoice-preview-container" class="xl:col-span-5">
+            ${renderLiveInvoicePreviewHTML()}
+          </div>
+        </div>
+      `;
+    }
+
+    function setBillingMode(mode) {
+      uiState.billing.mode = mode;
+      renderApp();
+    }
+
+    function selectBillingReservation(resId) {
+      uiState.billing.selectedReservationId = resId;
+      const res = appState.reservations.find((r) => r.id === resId);
+      if (res) {
+        const autoGst = getDefaultGstForRate(res.nightlyRateINR);
+        uiState.billing.taxPercent = autoGst;
+        uiState.billing.paymentMethod = res.paymentMethod || 'UPI';
+        const taxInput = document.getElementById('bill-tax-input');
+        const pmSelect = document.getElementById('bill-payment-method');
+        if (taxInput) taxInput.value = autoGst;
+        if (pmSelect) pmSelect.value = uiState.billing.paymentMethod;
+      }
+      updateBillPreview();
+    }
+
+    function updateQuickRoomType(type) {
+      uiState.billing.quickRoomType = type;
+      const found = ROOM_TYPES.find((r) => r.type === type);
+      if (found) {
+        uiState.billing.quickRateINR = found.defaultRateINR;
+        const autoGst = getDefaultGstForRate(found.defaultRateINR);
+        uiState.billing.taxPercent = autoGst;
+        const rateInput = document.getElementById('quick-rate');
+        const taxInput = document.getElementById('bill-tax-input');
+        if (rateInput) {
+          rateInput.value = Number(toDisplayAmount(found.defaultRateINR).toFixed(2));
+        }
+        if (taxInput) taxInput.value = autoGst;
+      }
+      updateBillPreview();
+    }
+
+    function updateQuickRate(val) {
+      uiState.billing.quickRateINR = val === '' ? '' : fromDisplayAmount(val);
+      updateBillPreview();
+    }
+
+    function updateQuickAdvance(val) {
+      uiState.billing.quickAdvanceINR = val === '' ? '' : fromDisplayAmount(val);
+      updateBillPreview();
+    }
+
+    function updateQuickField(field, val) {
+      uiState.billing[field] = val;
+      updateBillPreview();
+    }
+
+    function updateBillingPaymentMethod(val) {
+      uiState.billing.paymentMethod = val;
+      updateBillPreview();
+    }
+
+    function addPresetAddon(index) {
+      const preset = ADDON_PRESETS[index];
+      if (!preset) return;
+      uiState.billing.addons.push({
+        id: `addon-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        label: preset.label,
+        amountINR: preset.amountINR,
+      });
+      updateAddonsList();
+      updateBillPreview();
+    }
+
+    function addCustomAddon() {
+      const labelEl = document.getElementById('custom-addon-label');
+      const amtEl = document.getElementById('custom-addon-amount');
+      const label = labelEl.value.trim();
+      const displayAmt = parseFloat(amtEl.value);
+
+      if (!label || isNaN(displayAmt) || displayAmt <= 0) {
+        showToast('Enter a valid add-on description and positive amount.', 'error');
+        return;
+      }
+
+      uiState.billing.addons.push({
+        id: `addon-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        label,
+        amountINR: fromDisplayAmount(displayAmt),
+      });
+      labelEl.value = '';
+      amtEl.value = '';
+      updateAddonsList();
+      updateBillPreview();
+    }
+
+    function removeAddon(addonId) {
+      uiState.billing.addons = uiState.billing.addons.filter((a) => a.id !== addonId);
+      updateAddonsList();
+      updateBillPreview();
+    }
+
+    function updateBillingTax(val) {
+      uiState.billing.taxPercent = val === '' ? '' : val;
+      updateBillPreview();
+    }
+
+    function setDiscountType(type) {
+      uiState.billing.discountType = type;
+      const pctBtn = document.getElementById('btn-disc-percent');
+      const flatBtn = document.getElementById('btn-disc-flat');
+      if (pctBtn && flatBtn) {
+        pctBtn.className = `cursor-pointer rounded px-2 py-0.5 ${type === 'percent' ? 'bg-[#2563EB] text-white' : 'text-[#475569]'}`;
+        flatBtn.className = `cursor-pointer rounded px-2 py-0.5 ${type === 'flat' ? 'bg-[#2563EB] text-white' : 'text-[#475569]'}`;
+      }
+      updateBillPreview();
+    }
+
+    function updateBillingDiscount(val) {
+      uiState.billing.discountValue = val === '' ? '' : val;
+      updateBillPreview();
+    }
+
+    function finalizeReservationCheckout(reservationId, options) {
+      const res = appState.reservations.find((r) => r.id === reservationId);
+      if (!res || res.status !== 'Checked-In') {
+        showToast('Reservation is not currently checked in.', 'error');
+        return;
+      }
+
+      const roomChargeINR = res.nightlyRateINR * res.nights;
+      const addons = options.addons || [];
+      const addonsTotalINR = addons.reduce((s, a) => s + (Number(a.amountINR) || 0), 0);
+      const subtotalINR = roomChargeINR + addonsTotalINR;
+
+      let discountAmountINR = 0;
+      const dVal = Math.max(0, Number(options.discountValue) || 0);
+      if (options.discountType === 'percent') {
+        discountAmountINR = (subtotalINR * Math.min(100, dVal)) / 100;
+      } else {
+        discountAmountINR = Math.min(subtotalINR, fromDisplayAmount(dVal));
+      }
+
+      const taxable = Math.max(0, subtotalINR - discountAmountINR);
+      const taxPercent = Math.max(0, Number(options.taxPercent) || 0);
+      const taxAmountINR = (taxable * taxPercent) / 100;
+      const grandTotalINR = taxable + taxAmountINR;
+      const advancePaidINR = Number(res.advanceINR) || 0;
+      const balanceDueINR = Math.max(0, grandTotalINR - advancePaidINR);
+      const paymentMethod = options.paymentMethod || res.paymentMethod || 'UPI';
+
+      const invoice = {
+        invoiceId: `INV-2026-${appState.nextInvSeq++}`,
+        reservationId: res.id,
+        guestName: res.guestName,
+        phone: res.phone,
+        email: res.email,
+        roomNumber: res.roomNumber,
+        roomType: res.roomType,
+        checkIn: res.checkIn,
+        checkOut: res.checkOut,
+        nights: res.nights,
+        nightlyRateINR: res.nightlyRateINR,
+        roomChargeINR,
+        addons: addons.map((a) => ({ ...a })),
+        addonsTotalINR,
+        subtotalINR,
+        discountType: options.discountType,
+        discountValue: dVal,
+        discountAmountINR,
+        taxPercent,
+        taxAmountINR,
+        grandTotalINR,
+        advancePaidINR,
+        balanceDueINR,
+        paymentMethod,
+        issuedAt: new Date().toISOString(),
+      };
+
+      res.status = 'Checked-Out';
+      const room = appState.rooms.find((r) => r.id === res.roomId);
+      if (room) room.status = 'cleaning';
+
+      appState.bills.unshift(invoice);
+      uiState.billing.addons = [];
+      uiState.billing.discountValue = 0;
+      uiState.billing.selectedReservationId = null;
+
+      logAudit('checkout', `Checked out ${res.guestName} (Room ${res.roomNumber}) — ${invoice.invoiceId} settled via ${paymentMethod}; Room sent to Cleaning.`);
+      saveState();
+      renderApp();
+      showToast(`Checked out ${res.guestName}. Room ${res.roomNumber} marked Cleaning & ${invoice.invoiceId} saved.`, 'success');
+    }
+
+    function completeCheckoutAndSave() {
+      const calc = computeCurrentBill();
+      if (calc.isReservation && calc.reservation) {
+        finalizeReservationCheckout(calc.reservation.id, {
+          addons: uiState.billing.addons,
+          taxPercent: uiState.billing.taxPercent,
+          discountType: uiState.billing.discountType,
+          discountValue: uiState.billing.discountValue,
+          paymentMethod: uiState.billing.paymentMethod,
+        });
+      } else {
+        // Standalone quick calculator invoice save
+        const invoice = {
+          invoiceId: `INV-2026-${appState.nextInvSeq++}`,
+          reservationId: 'WALK-IN',
+          guestName: calc.guestName,
+          phone: '—',
+          email: '—',
+          roomNumber: 'Quick',
+          roomType: calc.roomType,
+          checkIn: calc.checkIn,
+          checkOut: calc.checkOut,
+          nights: calc.nights,
+          nightlyRateINR: calc.nightlyRateINR,
+          roomChargeINR: calc.roomChargeINR,
+          addons: calc.addons.map((a) => ({ ...a })),
+          addonsTotalINR: calc.addonsTotalINR,
+          subtotalINR: calc.subtotalINR,
+          discountType: calc.discountType,
+          discountValue: calc.discountValue,
+          discountAmountINR: calc.discountAmountINR,
+          taxPercent: calc.taxPercent,
+          taxAmountINR: calc.taxAmountINR,
+          grandTotalINR: calc.grandTotalINR,
+          advancePaidINR: calc.advancePaidINR,
+          balanceDueINR: calc.balanceDueINR,
+          paymentMethod: calc.paymentMethod,
+          issuedAt: new Date().toISOString(),
+        };
+        appState.bills.unshift(invoice);
+        uiState.billing.addons = [];
+        uiState.billing.discountValue = 0;
+        uiState.billing.quickAdvanceINR = 0;
+        logAudit('checkout', `Saved walk-in invoice ${invoice.invoiceId} for ${calc.guestName} via ${calc.paymentMethod}.`);
+        saveState();
+        renderApp();
+        showToast(`Saved invoice ${invoice.invoiceId} (${formatMoney(invoice.grandTotalINR, true)}) to Records.`, 'success');
+      }
+    }
+
+    // =========================================================================
+    // 8. FORMAL PRINTABLE INVOICE RENDERER & MODAL
+    // =========================================================================
+    function buildFormalInvoiceHTML(bill) {
+      const s = appState.settings || createDefaultSettings();
+      const adv = Number(bill.advancePaidINR) || 0;
+      const bal = bill.balanceDueINR !== undefined ? Number(bill.balanceDueINR) : Math.max(0, Number(bill.grandTotalINR) - adv);
+
+      return `
+        <div class="mx-auto max-w-2xl bg-white text-[#0F172A]">
+          <div class="flex items-start justify-between border-b-2 border-[#0F172A] pb-6">
+            <div>
+              <div class="font-display text-2xl font-bold uppercase tracking-tight">${escapeHTML(s.hotelName)}</div>
+              <div class="mt-1 text-xs text-[#475569]">10-Room Boutique Property &middot; Front Desk Billing Statement</div>
+              <div class="text-xs text-[#475569]">${escapeHTML(s.address)} &middot; GSTIN: ${escapeHTML(s.gstin)}</div>
+            </div>
+            <div class="text-right">
+              <div class="text-xs font-semibold uppercase tracking-widest text-[#475569]">Tax Invoice</div>
+              <div class="mt-1 font-mono text-base font-semibold tabular-nums">${escapeHTML(bill.invoiceId)}</div>
+              <div class="mt-0.5 font-mono text-xs text-[#475569] tabular-nums">Issued: ${formatDateShort(bill.issuedAt)}</div>
+            </div>
+          </div>
+
+          <div class="mt-6 grid grid-cols-2 gap-6 border-b border-[#E2E8F0] pb-6 text-xs">
+            <div>
+              <div class="font-semibold uppercase tracking-wider text-[#475569]">Billed To</div>
+              <div class="mt-1.5 text-sm font-semibold text-[#0F172A]">${escapeHTML(bill.guestName)}</div>
+              <div class="mt-0.5 text-[#475569]">Phone: ${escapeHTML(bill.phone || '—')}</div>
+              <div class="text-[#475569]">Payment Mode: <span class="font-semibold text-[#0F172A]">${escapeHTML(bill.paymentMethod || 'UPI')}</span></div>
+            </div>
+            <div class="text-right">
+              <div class="font-semibold uppercase tracking-wider text-[#475569]">Stay Details</div>
+              <div class="mt-1.5 font-mono text-sm font-semibold text-[#0F172A]">Room ${escapeHTML(bill.roomNumber)} (${escapeHTML(bill.roomType)})</div>
+              <div class="mt-0.5 font-mono text-[#475569] tabular-nums">${formatDateShort(bill.checkIn)} &rarr; ${formatDateShort(bill.checkOut)}</div>
+              <div class="text-[#475569]">Booking Ref: <span class="font-mono font-medium text-[#0F172A]">${escapeHTML(bill.reservationId)}</span></div>
+            </div>
+          </div>
+
+          <table class="mt-6 w-full border-collapse text-sm">
+            <thead>
+              <tr class="border-b border-[#E2E8F0] text-left text-[11px] font-semibold uppercase tracking-wider text-[#475569]">
+                <th class="py-2.5">Description</th>
+                <th class="py-2.5 text-right">Qty / Rate</th>
+                <th class="py-2.5 text-right">Amount</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-[#E2E8F0]">
+              <tr>
+                <td class="py-3 font-medium text-[#0F172A]">Room Accommodation — ${escapeHTML(bill.roomType)}</td>
+                <td class="py-3 text-right font-mono text-xs text-[#475569] tabular-nums">${bill.nights} night${bill.nights === 1 ? '' : 's'} &times; ${formatMoney(bill.nightlyRateINR)}</td>
+                <td class="py-3 text-right font-mono font-medium text-[#0F172A] tabular-nums">${formatMoney(bill.roomChargeINR)}</td>
+              </tr>
+              ${(bill.addons || [])
+                .map(
+                  (a) => `
+                    <tr>
+                      <td class="py-2.5 text-[#0F172A]">${escapeHTML(a.label)}</td>
+                      <td class="py-2.5 text-right font-mono text-xs text-[#475569]">1</td>
+                      <td class="py-2.5 text-right font-mono text-[#0F172A] tabular-nums">${formatMoney(a.amountINR)}</td>
+                    </tr>
+                  `
+                )
+                .join('')}
+            </tbody>
+          </table>
+
+          <div class="mt-6 flex justify-end">
+            <div class="w-full max-w-xs space-y-2 text-xs">
+              <div class="flex justify-between text-[#475569]">
+                <span>Subtotal</span>
+                <span class="font-mono font-medium text-[#0F172A] tabular-nums">${formatMoney(bill.subtotalINR)}</span>
+              </div>
+              ${
+                bill.discountAmountINR > 0
+                  ? `
+                    <div class="flex justify-between text-[#10B981]">
+                      <span>Discount ${bill.discountType === 'percent' ? `(${bill.discountValue}%)` : '(Flat)'}</span>
+                      <span class="font-mono font-semibold tabular-nums">-${formatMoney(bill.discountAmountINR)}</span>
+                    </div>
+                  `
+                  : ''
+              }
+              <div class="flex justify-between text-[#475569]">
+                <span>Tax / GST (${bill.taxPercent}%)</span>
+                <span class="font-mono text-[#0F172A] tabular-nums">${formatMoney(bill.taxAmountINR)}</span>
+              </div>
+              <div class="flex items-baseline justify-between border-t border-[#E2E8F0] pt-2 text-sm font-bold text-[#0F172A]">
+                <span class="font-display">Grand Total</span>
+                <span class="font-mono tabular-nums">${formatMoney(bill.grandTotalINR, true)}</span>
+              </div>
+              ${
+                adv > 0
+                  ? `
+                    <div class="flex justify-between text-[#10B981]">
+                      <span>Less: Advance Paid</span>
+                      <span class="font-mono font-semibold tabular-nums">-${formatMoney(adv, true)}</span>
+                    </div>
+                  `
+                  : ''
+              }
+              <div class="flex items-baseline justify-between border-t-2 border-[#0F172A] pt-2.5 text-base font-bold text-[#0F172A]">
+                <span class="font-display">Balance Due</span>
+                <span class="font-mono tabular-nums">${formatMoney(bal, true)}</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="mt-10 border-t border-[#E2E8F0] pt-4 text-center text-[11px] text-[#475569]">
+            Thank you for staying at ${escapeHTML(s.hotelName)}. This is a computer-generated invoice.
+          </div>
+        </div>
+      `;
+    }
+
+    function triggerInvoicePrint(billObj) {
+      const container = document.getElementById('printable-invoice-container');
+      container.innerHTML = buildFormalInvoiceHTML(billObj);
+      window.print();
+    }
+
+    function printCurrentCalculatorInvoice() {
+      const calc = computeCurrentBill();
+      triggerInvoicePrint({
+        invoiceId: `INV-2026-${appState.nextInvSeq}`,
+        reservationId: calc.reservation ? calc.reservation.id : 'ESTIMATE',
+        guestName: calc.guestName,
+        phone: calc.phone,
+        email: calc.email,
+        roomNumber: calc.roomNumber,
+        roomType: calc.roomType,
+        checkIn: calc.checkIn,
+        checkOut: calc.checkOut,
+        nights: calc.nights,
+        nightlyRateINR: calc.nightlyRateINR,
+        roomChargeINR: calc.roomChargeINR,
+        addons: calc.addons,
+        subtotalINR: calc.subtotalINR,
+        discountType: calc.discountType,
+        discountValue: calc.discountValue,
+        discountAmountINR: calc.discountAmountINR,
+        taxPercent: calc.taxPercent,
+        taxAmountINR: calc.taxAmountINR,
+        grandTotalINR: calc.grandTotalINR,
+        advancePaidINR: calc.advancePaidINR,
+        balanceDueINR: calc.balanceDueINR,
+        paymentMethod: calc.paymentMethod,
+        issuedAt: new Date().toISOString(),
+      });
+    }
+
+    function openInvoiceModal(invoiceId) {
+      const bill = appState.bills.find((b) => b.invoiceId === invoiceId);
+      if (!bill) return;
+
+      const modalRoot = document.getElementById('modal-root');
+      modalRoot.innerHTML = `
+        <div class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/45 p-4" role="dialog" aria-modal="true">
+          <div class="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-xl border border-[#E2E8F0] bg-[#FFFFFF] shadow-xl">
+            <div class="flex items-center justify-between border-b border-[#E2E8F0] px-6 py-4">
+              <div class="font-mono text-sm font-semibold text-[#0F172A]">${escapeHTML(bill.invoiceId)}</div>
+              <div class="flex items-center gap-2">
+                <button type="button" onclick="printSavedInvoice('${bill.invoiceId}')" class="inline-flex cursor-pointer items-center gap-1.5 rounded-lg bg-[#2563EB] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#1D4ED8]">
+                  <i data-lucide="printer" class="h-3.5 w-3.5"></i>
+                  <span>Print / PDF</span>
+                </button>
+                <button type="button" onclick="closeModal()" aria-label="Close modal" class="cursor-pointer rounded-lg p-1.5 text-[#475569] hover:bg-slate-100">
+                  <i data-lucide="x" class="h-5 w-5"></i>
+                </button>
+              </div>
+            </div>
+            <div class="p-6">
+              ${buildFormalInvoiceHTML(bill)}
+            </div>
+          </div>
+        </div>
+      `;
+      lucide.createIcons({ nodes: [modalRoot] });
+    }
+
+    function printSavedInvoice(invoiceId) {
+      const bill = appState.bills.find((b) => b.invoiceId === invoiceId);
+      if (!bill) return;
+      triggerInvoicePrint(bill);
+    }
+
+    // =========================================================================
+    // 9. VIEW 4: RECORDS & FILE EXPORT / IMPORT
+    // =========================================================================
+    function renderRecordsTableHTML() {
+      const q = uiState.recordsSearch.trim().toLowerCase();
+      const filteredBills = appState.bills.filter((b) => {
+        if (!q) return true;
+        return (
+          b.invoiceId.toLowerCase().includes(q) ||
+          b.guestName.toLowerCase().includes(q) ||
+          String(b.roomNumber).toLowerCase().includes(q) ||
+          String(b.reservationId).toLowerCase().includes(q)
+        );
+      });
+
+      if (filteredBills.length === 0) {
+        return `
+          <div class="px-6 py-14 text-center">
+            <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-slate-100 text-[#475569]">
+              <i data-lucide="folder-open" class="h-6 w-6"></i>
+            </div>
+            <h3 class="mt-3 font-display text-base font-bold text-[#0F172A]">No billing records match</h3>
+            <p class="mt-1 text-sm text-[#475569]">Complete a guest checkout or clear your search filter.</p>
+          </div>
+        `;
+      }
+
+      return `
+        <div class="overflow-x-auto">
+          <table class="w-full border-collapse text-left text-sm">
+            <thead>
+              <tr class="border-b border-[#E2E8F0] bg-[#F8FAFC] text-[11px] font-semibold uppercase tracking-wider text-[#475569]">
+                <th class="px-4 py-3">Invoice ID</th>
+                <th class="px-4 py-3">Guest</th>
+                <th class="px-4 py-3">Room</th>
+                <th class="px-4 py-3">Mode</th>
+                <th class="px-4 py-3 text-right">Grand Total</th>
+                <th class="px-4 py-3 text-right">Balance Paid</th>
+                <th class="px-4 py-3 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-[#E2E8F0]">
+              ${filteredBills
+                .map((b) => {
+                  const adv = Number(b.advancePaidINR) || 0;
+                  const bal = b.balanceDueINR !== undefined ? Number(b.balanceDueINR) : Math.max(0, Number(b.grandTotalINR) - adv);
+                  return `
+                    <tr class="transition-colors duration-150 hover:bg-slate-50/70">
+                      <td class="whitespace-nowrap px-4 py-3.5 font-mono text-xs font-semibold text-[#0F172A] tabular-nums">${escapeHTML(b.invoiceId)}</td>
+                      <td class="px-4 py-3.5">
+                        <div class="font-medium text-[#0F172A]">${escapeHTML(b.guestName)}</div>
+                        <div class="font-mono text-[11px] text-[#475569]">${formatDateShort(b.issuedAt)} &middot; ${escapeHTML(b.reservationId)}</div>
+                      </td>
+                      <td class="whitespace-nowrap px-4 py-3.5">
+                        <div class="font-mono text-xs font-semibold text-[#0F172A]">Room ${escapeHTML(b.roomNumber)}</div>
+                        <div class="text-xs text-[#475569]">${b.nights} night${b.nights === 1 ? '' : 's'}</div>
+                      </td>
+                      <td class="whitespace-nowrap px-4 py-3.5">
+                        <span class="rounded-md border border-[#E2E8F0] bg-[#F8FAFC] px-2 py-0.5 text-[11px] font-semibold text-[#0F172A]">${escapeHTML(b.paymentMethod || 'UPI')}</span>
+                      </td>
+                      <td class="whitespace-nowrap px-4 py-3.5 text-right font-mono text-xs font-semibold text-[#0F172A] tabular-nums">${formatMoney(b.grandTotalINR, true)}</td>
+                      <td class="whitespace-nowrap px-4 py-3.5 text-right font-mono text-xs text-[#475569] tabular-nums">
+                        <div>${formatMoney(bal, true)}</div>
+                        ${adv > 0 ? `<div class="text-[10px] text-[#10B981]">Adv: ${formatMoney(adv)}</div>` : ''}
+                      </td>
+                      <td class="whitespace-nowrap px-4 py-3.5 text-right">
+                        <div class="inline-flex items-center gap-1.5">
+                          <button type="button" onclick="openInvoiceModal('${b.invoiceId}')" class="inline-flex cursor-pointer items-center gap-1 rounded-lg border border-[#E2E8F0] bg-[#FFFFFF] px-2.5 py-1.5 text-xs font-semibold text-[#0F172A] hover:bg-slate-50">
+                            <i data-lucide="eye" class="h-3.5 w-3.5"></i>
+                            <span>View</span>
+                          </button>
+                          <button type="button" onclick="printSavedInvoice('${b.invoiceId}')" class="inline-flex cursor-pointer items-center gap-1 rounded-lg border border-[#E2E8F0] bg-[#FFFFFF] px-2.5 py-1.5 text-xs font-semibold text-[#2563EB] hover:border-[#2563EB] hover:bg-blue-50/40">
+                            <i data-lucide="printer" class="h-3.5 w-3.5"></i>
+                            <span>Print</span>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  `;
+                })
+                .join('')}
+            </tbody>
+          </table>
+        </div>
+      `;
+    }
+
+    function renderRecordsView() {
+      const totalRevenueINR = appState.bills.reduce((s, b) => s + (Number(b.grandTotalINR) || 0), 0);
+
+      return `
+        <div class="space-y-6">
+          <!-- File Export / Import Action Bar -->
+          <section class="rounded-xl border border-[#E2E8F0] bg-[#FFFFFF] p-5 shadow-sm">
+            <div class="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
+              <div>
+                <h2 class="font-display text-base font-bold text-[#0F172A]">Save & Export Record Data</h2>
+                <p class="mt-0.5 text-xs text-[#475569]">Download structured backups, Excel-ready ledgers, or formatted plain-text reports directly to your computer.</p>
+              </div>
+
+              <div class="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onclick="exportRecordsCSV()"
+                  class="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-[#E2E8F0] bg-[#FFFFFF] px-3.5 py-2 text-xs font-semibold text-[#0F172A] transition-colors duration-150 hover:border-[#2563EB] hover:text-[#2563EB]"
+                >
+                  <i data-lucide="file-spreadsheet" class="h-4 w-4"></i>
+                  <span>Export CSV</span>
+                </button>
+
+                <button
+                  type="button"
+                  onclick="exportRecordsJSON()"
+                  class="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-[#E2E8F0] bg-[#FFFFFF] px-3.5 py-2 text-xs font-semibold text-[#0F172A] transition-colors duration-150 hover:border-[#2563EB] hover:text-[#2563EB]"
+                >
+                  <i data-lucide="file-json" class="h-4 w-4"></i>
+                  <span>Export JSON</span>
+                </button>
+
+                <button
+                  type="button"
+                  onclick="exportRecordsTXT()"
+                  class="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-[#E2E8F0] bg-[#FFFFFF] px-3.5 py-2 text-xs font-semibold text-[#0F172A] transition-colors duration-150 hover:border-[#2563EB] hover:text-[#2563EB]"
+                >
+                  <i data-lucide="file-text" class="h-4 w-4"></i>
+                  <span>Export TXT Report</span>
+                </button>
+
+                <label class="inline-flex cursor-pointer items-center gap-1.5 rounded-lg bg-[#2563EB] px-3.5 py-2 text-xs font-semibold text-white transition-colors duration-150 hover:bg-[#1D4ED8]">
+                  <i data-lucide="upload" class="h-4 w-4"></i>
+                  <span>Import JSON</span>
+                  <input type="file" accept=".json,application/json" onchange="handleImportJSON(event)" class="hidden" />
+                </label>
+              </div>
+            </div>
+          </section>
+
+          <!-- Revenue Summary + Search -->
+          <div class="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+            <div class="flex items-center gap-4">
+              <div class="rounded-lg border border-[#E2E8F0] bg-[#FFFFFF] px-4 py-2.5 shadow-sm">
+                <div class="text-[11px] font-semibold uppercase tracking-wider text-[#475569]">Collected Revenue</div>
+                <div class="font-mono text-lg font-semibold text-[#0F172A] tabular-nums">${formatMoney(totalRevenueINR, true)}</div>
+              </div>
+              <div class="rounded-lg border border-[#E2E8F0] bg-[#FFFFFF] px-4 py-2.5 shadow-sm">
+                <div class="text-[11px] font-semibold uppercase tracking-wider text-[#475569]">Saved Invoices</div>
+                <div class="font-mono text-lg font-semibold text-[#0F172A] tabular-nums">${appState.bills.length}</div>
+              </div>
+            </div>
+
+            <div class="relative">
+              <i data-lucide="search" class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#475569]"></i>
+              <input
+                id="records-search-input"
+                type="text"
+                value="${escapeHTML(uiState.recordsSearch)}"
+                oninput="setRecordsSearch(this.value)"
+                placeholder="Search invoice #, guest, room..."
+                class="w-full rounded-lg border border-[#E2E8F0] bg-[#FFFFFF] py-2 pl-9 pr-3 text-xs text-[#0F172A] placeholder:text-slate-400 focus:border-[#2563EB] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/20 sm:w-64"
+              />
+            </div>
+          </div>
+
+          <!-- Finalized Invoices Ledger Table (isolated container so search typing never resets focus) -->
+          <div id="records-table-container" class="overflow-hidden rounded-xl border border-[#E2E8F0] bg-[#FFFFFF] shadow-sm">
+            ${renderRecordsTableHTML()}
+          </div>
+        </div>
+      `;
+    }
+
+    function setRecordsSearch(val) {
+      uiState.recordsSearch = val;
+      const container = document.getElementById('records-table-container');
+      if (container) {
+        container.innerHTML = renderRecordsTableHTML();
+        lucide.createIcons({ nodes: [container] });
+      }
+    }
+
+    // =========================================================================
+    // 10. FILE DOWNLOAD & IMPORT UTILITIES (CSV, JSON, TXT)
+    // =========================================================================
+    function downloadBlob(content, filename, mimeType) {
+      const blob = new Blob([content], { type: mimeType });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+
+    function csvEscape(val) {
+      const str = String(val ?? '');
+      if (/[",\n\r]/.test(str)) {
+        return `"${str.replace(/"/g, '""')}"`;
+      }
+      return str;
+    }
+
+    function exportRecordsCSV() {
+      const headers = [
+        'Invoice ID',
+        'Reservation ID',
+        'Guest Name',
+        'Room Number',
+        'Room Type',
+        'Check-In',
+        'Check-Out',
+        'Nights',
+        `Room Charge (${appState.currency})`,
+        `Add-Ons (${appState.currency})`,
+        `Discount (${appState.currency})`,
+        'Tax %',
+        `Tax Amount (${appState.currency})`,
+        `Grand Total (${appState.currency})`,
+        `Advance Paid (${appState.currency})`,
+        `Balance Due (${appState.currency})`,
+        'Payment Method',
+        'Issued Date',
+      ];
+
+      const rows = appState.bills.map((b) => {
+        const adv = Number(b.advancePaidINR) || 0;
+        const bal = b.balanceDueINR !== undefined ? Number(b.balanceDueINR) : Math.max(0, Number(b.grandTotalINR) - adv);
+        return [
+          b.invoiceId,
+          b.reservationId,
+          b.guestName,
+          b.roomNumber,
+          b.roomType,
+          b.checkIn,
+          b.checkOut,
+          b.nights,
+          toDisplayAmount(b.roomChargeINR).toFixed(2),
+          toDisplayAmount(b.addonsTotalINR).toFixed(2),
+          toDisplayAmount(b.discountAmountINR).toFixed(2),
+          b.taxPercent,
+          toDisplayAmount(b.taxAmountINR).toFixed(2),
+          toDisplayAmount(b.grandTotalINR).toFixed(2),
+          toDisplayAmount(adv).toFixed(2),
+          toDisplayAmount(bal).toFixed(2),
+          b.paymentMethod || 'UPI',
+          b.issuedAt,
+        ];
+      });
+
+      const csvContent = [headers, ...rows].map((row) => row.map(csvEscape).join(',')).join('\r\n');
+      const stamp = toISODate(new Date());
+      downloadBlob(csvContent, `swiss-frontdesk-records-${stamp}.csv`, 'text/csv;charset=utf-8;');
+      showToast('Exported Excel-compatible CSV ledger.', 'success');
+    }
+
+    function exportRecordsJSON() {
+      const payload = {
+        exportedAt: new Date().toISOString(),
+        application: 'Swiss Front-Desk Hotel Management',
+        data: appState,
+      };
+      const stamp = toISODate(new Date());
+      downloadBlob(JSON.stringify(payload, null, 2), `swiss-frontdesk-backup-${stamp}.json`, 'application/json;charset=utf-8;');
+      showToast('Exported complete JSON database backup.', 'success');
+    }
+
+    function exportRecordsTXT() {
+      const s = appState.settings || createDefaultSettings();
+      const available = appState.rooms.filter((r) => r.status === 'available').length;
+      const occupied = appState.rooms.filter((r) => r.status === 'occupied').length;
+      const cleaning = appState.rooms.filter((r) => r.status === 'cleaning').length;
+      const maintenance = appState.rooms.filter((r) => r.status === 'maintenance').length;
+      const totalRevenueINR = appState.bills.reduce((sum, b) => sum + (Number(b.grandTotalINR) || 0), 0);
+
+      const lines = [
+        '====================================================================',
+        `   ${s.hotelName.toUpperCase()} — HOTEL SUMMARY REPORT`,
+        `   ${s.address} | GSTIN: ${s.gstin}`,
+        '====================================================================',
+        `Generated On  : ${new Date().toLocaleString()}`,
+        `Currency      : ${appState.currency}`,
+        '--------------------------------------------------------------------',
+        '1. ROOM OCCUPANCY SNAPSHOT (10 ROOMS)',
+        `   - Available (Empty) : ${available}`,
+        `   - Occupied          : ${occupied}`,
+        `   - Cleaning / Dirty  : ${cleaning}`,
+        `   - Maintenance       : ${maintenance}`,
+        '',
+        ...appState.rooms.map((r) => {
+          const active = getActiveReservationForRoom(r.id);
+          const guestInfo = active ? ` | Guest: ${active.guestName} (Out: ${active.checkOut})` : '';
+          return `   Room ${r.number} | ${r.type.padEnd(16)} | ${r.status.toUpperCase().padEnd(11)} | ${formatMoney(r.rateINR)}/night${guestInfo}`;
+        }),
+        '',
+        '--------------------------------------------------------------------',
+        `2. FINALIZED BILLING RECORDS (${appState.bills.length} INVOICES)`,
+        `   Total Collected Revenue: ${formatMoney(totalRevenueINR, true)}`,
+        '',
+        ...appState.bills.map((b) => {
+          const extras = (b.addons || []).map((a) => `${a.label} (${formatMoney(a.amountINR)})`).join(', ') || 'None';
+          const adv = Number(b.advancePaidINR) || 0;
+          const bal = b.balanceDueINR !== undefined ? Number(b.balanceDueINR) : Math.max(0, Number(b.grandTotalINR) - adv);
+          return [
+            `   [${b.invoiceId}] ${b.guestName} — Room ${b.roomNumber} (${b.nights} nights) | Mode: ${b.paymentMethod || 'UPI'}`,
+            `     Stay: ${b.checkIn} to ${b.checkOut} | Extras: ${extras}`,
+            `     Subtotal: ${formatMoney(b.subtotalINR)} | Tax (${b.taxPercent}%): ${formatMoney(b.taxAmountINR)} | TOTAL: ${formatMoney(b.grandTotalINR, true)} | Adv: ${formatMoney(adv)} | Bal: ${formatMoney(bal, true)}`,
+          ].join('\n');
+        }),
+        '====================================================================',
+      ];
+
+      const stamp = toISODate(new Date());
+      downloadBlob(lines.join('\n'), `swiss-frontdesk-report-${stamp}.txt`, 'text/plain;charset=utf-8;');
+      showToast('Exported formatted TXT summary report.', 'success');
+    }
+
+    function handleImportJSON(event) {
+      const file = event.target.files && event.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const parsed = JSON.parse(e.target.result);
+          const imported = parsed.data ? parsed.data : parsed;
+          if (
+            !imported ||
+            !Array.isArray(imported.rooms) ||
+            !Array.isArray(imported.reservations) ||
+            !Array.isArray(imported.bills)
+          ) {
+            throw new Error('Invalid hotel backup schema.');
+          }
+          appState = {
+            currency: imported.currency === 'USD' ? 'USD' : 'INR',
+            settings: { ...createDefaultSettings(), ...(imported.settings || {}) },
+            rooms: imported.rooms,
+            reservations: imported.reservations,
+            bills: imported.bills,
+            auditLog: Array.isArray(imported.auditLog) ? imported.auditLog : [],
+            nextResSeq: Number(imported.nextResSeq) || 2000,
+            nextInvSeq: Number(imported.nextInvSeq) || 2000,
+          };
+          saveState();
+          renderApp();
+          showToast(`Successfully imported ${appState.bills.length} invoices and ${appState.reservations.length} reservations.`, 'success');
+        } catch (err) {
+          console.error(err);
+          showToast('Import failed: Please select a valid Swiss Front-Desk JSON backup file.', 'error');
+        } finally {
+          event.target.value = '';
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    // =========================================================================
+    // 10B. EDITABLE ROOM RATES & PROPERTY SETTINGS MODAL
+    // =========================================================================
+    function openSettingsModal() {
+      const s = appState.settings || createDefaultSettings();
+      const thresholdDisplay = Number(toDisplayAmount(s.gstThresholdINR).toFixed(2));
+
+      const modalRoot = document.getElementById('modal-root');
+      modalRoot.innerHTML = `
+        <div class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/45 p-4" role="dialog" aria-modal="true" aria-labelledby="settings-modal-title">
+          <div class="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-xl border border-[#E2E8F0] bg-[#FFFFFF] shadow-xl">
+            <div class="flex items-center justify-between border-b border-[#E2E8F0] px-6 py-4">
+              <div>
+                <h2 id="settings-modal-title" class="font-display text-lg font-bold text-[#0F172A]">Property & Tariff Settings</h2>
+                <p class="text-xs text-[#475569]">Customize hotel branding, GST slabs, and individual room nightly rates.</p>
+              </div>
+              <button type="button" onclick="closeModal()" aria-label="Close modal" class="cursor-pointer rounded-lg p-1.5 text-[#475569] hover:bg-slate-100">
+                <i data-lucide="x" class="h-5 w-5"></i>
+              </button>
+            </div>
+
+            <form id="settings-form" class="space-y-6 p-6">
+              <!-- Hotel Identity -->
+              <div class="space-y-3">
+                <h3 class="text-xs font-semibold uppercase tracking-wider text-[#475569]">Property Identity (Invoices & Reports)</h3>
+                <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div class="sm:col-span-2">
+                    <label for="set-hotel-name" class="mb-1 block text-xs font-semibold text-[#0F172A]">Hotel Name</label>
+                    <input id="set-hotel-name" type="text" required value="${escapeHTML(s.hotelName)}" class="w-full rounded-lg border border-[#E2E8F0] px-3 py-2 text-sm text-[#0F172A] focus:border-[#2563EB] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/20" />
+                  </div>
+                  <div>
+                    <label for="set-address" class="mb-1 block text-xs font-semibold text-[#0F172A]">Address</label>
+                    <input id="set-address" type="text" value="${escapeHTML(s.address)}" class="w-full rounded-lg border border-[#E2E8F0] px-3 py-2 text-sm text-[#0F172A] focus:border-[#2563EB] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/20" />
+                  </div>
+                  <div>
+                    <label for="set-gstin" class="mb-1 block text-xs font-semibold text-[#0F172A]">GSTIN / Tax ID</label>
+                    <input id="set-gstin" type="text" value="${escapeHTML(s.gstin)}" class="w-full rounded-lg border border-[#E2E8F0] px-3 py-2 font-mono text-sm text-[#0F172A] focus:border-[#2563EB] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/20" />
+                  </div>
+                </div>
+              </div>
+
+              <!-- GST Slabs -->
+              <div class="space-y-3 border-t border-[#E2E8F0] pt-5">
+                <h3 class="text-xs font-semibold uppercase tracking-wider text-[#475569]">Automatic GST Tariff Slabs</h3>
+                <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  <div>
+                    <label for="set-gst-low" class="mb-1 block text-xs font-semibold text-[#0F172A]">Standard Slab (%)</label>
+                    <input id="set-gst-low" type="number" min="0" max="50" step="any" value="${s.gstLowSlab}" class="w-full rounded-lg border border-[#E2E8F0] px-3 py-2 font-mono text-sm text-[#0F172A] focus:border-[#2563EB] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/20" />
+                  </div>
+                  <div>
+                    <label for="set-gst-high" class="mb-1 block text-xs font-semibold text-[#0F172A]">Luxury Slab (%)</label>
+                    <input id="set-gst-high" type="number" min="0" max="50" step="any" value="${s.gstHighSlab}" class="w-full rounded-lg border border-[#E2E8F0] px-3 py-2 font-mono text-sm text-[#0F172A] focus:border-[#2563EB] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/20" />
+                  </div>
+                  <div>
+                    <label for="set-gst-threshold" class="mb-1 block text-xs font-semibold text-[#0F172A]">Luxury Threshold (${getCurrencySymbol()})</label>
+                    <input id="set-gst-threshold" type="number" min="0" step="any" value="${thresholdDisplay}" class="w-full rounded-lg border border-[#E2E8F0] px-3 py-2 font-mono text-sm text-[#0F172A] focus:border-[#2563EB] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/20" />
+                  </div>
+                </div>
+              </div>
+
+              <!-- Editable Per-Room Nightly Rates -->
+              <div class="space-y-3 border-t border-[#E2E8F0] pt-5">
+                <h3 class="text-xs font-semibold uppercase tracking-wider text-[#475569]">Room Nightly Rates (${getCurrencySymbol()})</h3>
+                <div class="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+                  ${appState.rooms
+                    .map((r) => {
+                      const rateDisp = Number(toDisplayAmount(r.rateINR).toFixed(2));
+                      return `
+                        <div class="flex items-center justify-between gap-2 rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-3 py-2">
+                          <div>
+                            <div class="font-mono text-xs font-semibold text-[#0F172A]">Room ${r.number}</div>
+                            <div class="text-[11px] text-[#475569]">${escapeHTML(r.type)}</div>
+                          </div>
+                          <input
+                            data-room-rate-id="${r.id}"
+                            type="number"
+                            min="1"
+                            step="any"
+                            value="${rateDisp}"
+                            class="w-28 rounded-md border border-[#E2E8F0] bg-[#FFFFFF] px-2.5 py-1.5 text-right font-mono text-xs font-semibold text-[#0F172A] focus:border-[#2563EB] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/20"
+                          />
+                        </div>
+                      `;
+                    })
+                    .join('')}
+                </div>
+              </div>
+
+              <div class="flex items-center justify-end gap-2.5 border-t border-[#E2E8F0] pt-4">
+                <button type="button" onclick="closeModal()" class="cursor-pointer rounded-lg border border-[#E2E8F0] bg-[#FFFFFF] px-4 py-2 text-sm font-medium text-[#475569] hover:bg-slate-50">
+                  Cancel
+                </button>
+                <button type="submit" class="inline-flex cursor-pointer items-center gap-1.5 rounded-lg bg-[#2563EB] px-4 py-2 text-sm font-semibold text-white transition-colors duration-150 hover:bg-[#1D4ED8]">
+                  <i data-lucide="save" class="h-4 w-4"></i>
+                  <span>Save Settings</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      `;
+      lucide.createIcons({ nodes: [modalRoot] });
+      document.getElementById('settings-form').addEventListener('submit', handleSaveSettings);
+    }
+
+    function handleSaveSettings(e) {
+      e.preventDefault();
+      const hotelName = document.getElementById('set-hotel-name').value.trim() || 'Swiss Front-Desk Hotel';
+      const address = document.getElementById('set-address').value.trim();
+      const gstin = document.getElementById('set-gstin').value.trim();
+      const gstLowSlab = Math.max(0, parseFloat(document.getElementById('set-gst-low').value) || 0);
+      const gstHighSlab = Math.max(0, parseFloat(document.getElementById('set-gst-high').value) || 0);
+      const thresholdDisplay = Math.max(0, parseFloat(document.getElementById('set-gst-threshold').value) || 0);
+
+      appState.settings = {
+        hotelName,
+        address,
+        gstin,
+        gstLowSlab,
+        gstHighSlab,
+        gstThresholdINR: fromDisplayAmount(thresholdDisplay),
+      };
+
+      document.querySelectorAll('[data-room-rate-id]').forEach((input) => {
+        const roomId = input.getAttribute('data-room-rate-id');
+        const val = parseFloat(input.value);
+        const room = appState.rooms.find((r) => r.id === roomId);
+        if (room && !isNaN(val) && val > 0) {
+          room.rateINR = fromDisplayAmount(val);
+        }
+      });
+
+      logAudit('settings', `Updated property settings & room tariffs (${hotelName}, GST ${gstLowSlab}% / ${gstHighSlab}%).`);
+      saveState();
+      closeModal();
+      renderApp();
+      showToast('Property settings and room rates saved.', 'success');
+    }
+
+    // =========================================================================
+    // 11. MASTER RENDER PIPELINE
+    // =========================================================================
+    const VIEW_META = {
+      overview: {
+        title: 'Room Overview',
+        subtitle: 'Real-time 10-room occupancy grid & empty room checker',
+      },
+      reservations: {
+        title: 'Reservations Manager',
+        subtitle: 'Manage active stays, new guest check-ins, and booking history',
+      },
+      billing: {
+        title: 'Bill Calculator & Invoice',
+        subtitle: 'Compute room stays, itemized extras, tax/GST, discounts, and check-out',
+      },
+      records: {
+        title: 'Records & File Export',
+        subtitle: 'Search finalized invoices and export/import CSV, JSON, or TXT reports',
+      },
+    };
+
+    function renderMainOnly() {
+      const main = document.getElementById('main-content');
+      if (uiState.currentView === 'overview') {
+        main.innerHTML = renderOverviewView();
+      } else if (uiState.currentView === 'reservations') {
+        main.innerHTML = renderReservationsView();
+      } else if (uiState.currentView === 'billing') {
+        main.innerHTML = renderBillingView();
+      } else {
+        main.innerHTML = renderRecordsView();
+      }
+      lucide.createIcons({ nodes: [main] });
+    }
+
+    function renderApp() {
+      // Update header title & date
+      const meta = VIEW_META[uiState.currentView] || VIEW_META.overview;
+      document.getElementById('header-title').textContent = meta.title;
+      document.getElementById('header-subtitle').textContent = meta.subtitle;
+      document.getElementById('sidebar-brand-name').textContent = (appState.settings && appState.settings.hotelName) || 'Swiss Front-Desk';
+      document.getElementById('header-date').textContent = new Date().toLocaleDateString('en-GB', {
+        weekday: 'short',
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+      });
+
+      // Update sidebar badges
+      document.getElementById('nav-empty-badge').textContent = appState.rooms.filter((r) => r.status === 'available').length;
+      document.getElementById('nav-active-badge').textContent = appState.reservations.filter((r) => r.status === 'Checked-In').length;
+      document.getElementById('nav-records-badge').textContent = appState.bills.length;
+
+      // Update sidebar active link highlight
+      document.querySelectorAll('.nav-item').forEach((btn) => {
+        const isActive = btn.getAttribute('data-nav') === uiState.currentView;
+        btn.classList.toggle('bg-blue-50', isActive);
+        btn.classList.toggle('text-[#2563EB]', isActive);
+        btn.classList.toggle('text-[#475569]', !isActive);
+        btn.classList.toggle('hover:bg-slate-50', !isActive);
+        btn.classList.toggle('hover:text-[#0F172A]', !isActive);
+      });
+
+      // Update currency toggle styling
+      const inrBtn = document.getElementById('btn-currency-inr');
+      const usdBtn = document.getElementById('btn-currency-usd');
+      const isINR = appState.currency === 'INR';
+      inrBtn.className = `cursor-pointer rounded-md py-1.5 text-xs font-semibold transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB] ${
+        isINR ? 'bg-[#FFFFFF] text-[#0F172A] shadow-sm' : 'text-[#475569] hover:text-[#0F172A]'
+      }`;
+      usdBtn.className = `cursor-pointer rounded-md py-1.5 text-xs font-semibold transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB] ${
+        !isINR ? 'bg-[#FFFFFF] text-[#0F172A] shadow-sm' : 'text-[#475569] hover:text-[#0F172A]'
+      }`;
+
+      renderMainOnly();
+      lucide.createIcons();
+    }
+
+    // Boot application on load
+    window.addEventListener('DOMContentLoaded', () => {
+      renderApp();
+    });
+  </script>
+</body>
+</html>
