@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Grand Horizon Hotel — Java Management Console</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-badge">GH</div>
+        <div>
+          <h1>Grand Horizon Hotel</h1>
+          <p class="subtitle">Java 21 Room Reservation, Billing &amp; File Record Console (10 Rooms)</p>
+        </div>
+      </div>
+
+      <div class="topbar-actions">
+        <div class="availability-pill" id="availabilityPill">
+          <span class="dot"></span>
+          <span id="availabilityPillText">Loading rooms...</span>
+        </div>
+        <button class="btn btn-secondary" id="newReservationBtn" type="button">+ New Reservation</button>
+        <button class="btn btn-primary" id="saveRecordsBtn" type="button">Save Records to File</button>
+      </div>
+    </header>
+
+    <section class="kpi-grid" aria-label="Hotel overview">
+      <article class="kpi-card">
+        <span class="kpi-label">Total Capacity</span>
+        <strong class="kpi-value" id="kpiTotalRooms">10</strong>
+        <span class="kpi-meta">Rooms 101 – 110</span>
+      </article>
+      <article class="kpi-card kpi-available">
+        <span class="kpi-label">Empty Rooms</span>
+        <strong class="kpi-value" id="kpiAvailableRooms">—</strong>
+        <span class="kpi-meta" id="kpiOccupancyRate">0% occupied</span>
+      </article>
+      <article class="kpi-card kpi-reserved">
+        <span class="kpi-label">Reserved</span>
+        <strong class="kpi-value" id="kpiReservedRooms">—</strong>
+        <span class="kpi-meta">Awaiting check-in</span>
+      </article>
+      <article class="kpi-card kpi-occupied">
+        <span class="kpi-label">Occupied</span>
+        <strong class="kpi-value" id="kpiOccupiedRooms">—</strong>
+        <span class="kpi-meta">Checked-in guests</span>
+      </article>
+      <article class="kpi-card kpi-revenue">
+        <span class="kpi-label">Revenue (Paid / Pending)</span>
+        <strong class="kpi-value" id="kpiRevenue">$0.00</strong>
+        <span class="kpi-meta" id="kpiPendingRevenue">$0.00 active stays</span>
+      </article>
+    </section>
+
+    <nav class="tabs" role="tablist" aria-label="Workspace sections">
+      <button class="tab active" data-tab="rooms" type="button" role="tab" aria-selected="true">Rooms Overview (10)</button>
+      <button class="tab" data-tab="empty" type="button" role="tab" aria-selected="false">Check Empty Rooms</button>
+      <button class="tab" data-tab="reservations" type="button" role="tab" aria-selected="false">Reservations Ledger</button>
+      <button class="tab" data-tab="billing" type="button" role="tab" aria-selected="false">Bill Calculator</button>
+      <button class="tab" data-tab="records" type="button" role="tab" aria-selected="false">Saved File Records</button>
+    </nav>
+
+    <main class="main-content">
+      <!-- TAB 1: ROOMS OVERVIEW -->
+      <section class="tab-panel active" id="panel-rooms">
+        <div class="panel-toolbar">
+          <div class="filter-group" id="roomStatusFilters">
+            <button class="chip active" data-status="ALL" type="button">All Rooms</button>
+            <button class="chip" data-status="AVAILABLE" type="button">Empty / Available</button>
+            <button class="chip" data-status="RESERVED" type="button">Reserved</button>
+            <button class="chip" data-status="OCCUPIED" type="button">Occupied</button>
+          </div>
+          <div class="filter-controls">
+            <select id="roomTypeFilter" aria-label="Filter by room type">
+              <option value="ALL">All Room Types</option>
+              <option value="Standard">Standard</option>
+              <option value="Deluxe">Deluxe</option>
+              <option value="Executive Suite">Executive Suite</option>
+              <option value="Presidential Penthouse">Presidential Penthouse</option>
+            </select>
+          </div>
+        </div>
+        <div class="room-grid" id="roomsGrid"></div>
+      </section>
+
+      <!-- TAB 2: CHECK EMPTY ROOMS -->
+      <section class="tab-panel" id="panel-empty">
+        <div class="empty-banner">
+          <div>
+            <h2>Check Empty Rooms</h2>
+            <p id="emptySummaryText">Checking live availability across all 10 rooms...</p>
+          </div>
+          <div class="empty-filters">
+            <label>
+              Room Type
+              <select id="emptyTypeFilter">
+                <option value="ALL">Any Type</option>
+                <option value="Standard">Standard</option>
+                <option value="Deluxe">Deluxe</option>
+                <option value="Executive Suite">Executive Suite</option>
+                <option value="Presidential Penthouse">Presidential Penthouse</option>
+              </select>
+            </label>
+            <label>
+              Min Guests
+              <select id="emptyGuestsFilter">
+                <option value="">Any</option>
+                <option value="1">1+ Guest</option>
+                <option value="2">2+ Guests</option>
+                <option value="3">3+ Guests</option>
+                <option value="4">4 Guests</option>
+              </select>
+            </label>
+            <label>
+              Max Nightly Rate ($)
+              <input id="emptyMaxRateFilter" type="number" min="0" step="10" placeholder="e.g. 200">
+            </label>
+            <button class="btn btn-primary" id="checkEmptyBtn" type="button">Check Availability</button>
+          </div>
+        </div>
+        <div class="room-grid" id="emptyRoomsGrid"></div>
+      </section>
+
+      <!-- TAB 3: RESERVATIONS LEDGER -->
+      <section class="tab-panel" id="panel-reservations">
+        <div class="panel-toolbar">
+          <div class="filter-group" id="resStatusFilters">
+            <button class="chip active" data-status="ALL" type="button">All Records</button>
+            <button class="chip" data-status="RESERVED" type="button">Reserved</button>
+            <button class="chip" data-status="CHECKED_IN" type="button">Checked In</button>
+            <button class="chip" data-status="CHECKED_OUT" type="button">Checked Out</button>
+            <button class="chip" data-status="CANCELLED" type="button">Cancelled</button>
+          </div>
+          <div class="filter-controls">
+            <input id="resSearchInput" type="search" placeholder="Search guest, ID, or room #...">
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Room</th>
+                <th>Guest</th>
+                <th>Stay Dates</th>
+                <th>Nights / Guests</th>
+                <th>Total Bill</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="reservationsTableBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- TAB 4: BILL CALCULATOR -->
+      <section class="tab-panel" id="panel-billing">
+        <div class="billing-layout">
+          <form class="card form-card" id="billCalcForm">
+            <h2>Interactive Bill Calculator</h2>
+            <p class="muted">Compute an itemized hotel bill using live Java backend pricing, extras, discounts, and 12% hospitality tax.</p>
+
+            <div class="form-row">
+              <label>
+                Room (101 – 110)
+                <select id="calcRoomSelect" required></select>
+              </label>
+              <label>
+                Number of Nights
+                <input id="calcNights" type="number" min="1" max="365" value="2" required>
+              </label>
+            </div>
+
+            <div class="extras-fieldset">
+              <span class="field-label">Optional Add-On Services</span>
+              <div class="extras-checklist" id="calcExtrasList"></div>
+            </div>
+
+            <div class="form-row">
+              <label>
+                Custom Fee ($)
+                <input id="calcCustomFee" type="number" min="0" step="0.01" value="0">
+              </label>
+              <label>
+                Custom Fee Description
+                <input id="calcCustomFeeLabel" type="text" placeholder="e.g. Minibar / Parking">
+              </label>
+            </div>
+
+            <div class="form-row">
+              <label>
+                Discount (%)
+                <input id="calcDiscount" type="number" min="0" max="50" step="1" value="0">
+              </label>
+              <label>
+                Promo Code
+                <input id="calcPromo" type="text" placeholder="WEEKEND10, VIP20, DIRECT5">
+              </label>
+            </div>
+
+            <div class="form-actions">
+              <button class="btn btn-primary" type="submit">Calculate Bill</button>
+              <button class="btn btn-secondary" id="bookFromCalcBtn" type="button">Reserve With These Options</button>
+            </div>
+          </form>
+
+          <aside class="card invoice-card" id="calcInvoiceCard">
+            <div class="invoice-header">
+              <div>
+                <h3>Itemized Bill Preview</h3>
+                <p class="muted" id="calcRoomSubtitle">Select options to calculate</p>
+              </div>
+              <button class="btn btn-secondary btn-sm" id="printCalcInvoiceBtn" type="button">Print Estimate</button>
+            </div>
+            <div id="calcInvoiceBody" class="invoice-body"></div>
+          </aside>
+        </div>
+      </section>
+
+      <!-- TAB 5: SAVED FILE RECORDS -->
+      <section class="tab-panel" id="panel-records">
+        <div class="records-grid">
+          <div class="card">
+            <h2>Persistent File Storage</h2>
+            <p class="muted">Every reservation, check-in, checkout, cancellation, and bill update is automatically saved to disk in both JSON and CSV formats.</p>
+
+            <dl class="storage-meta">
+              <div>
+                <dt>JSON Database File</dt>
+                <dd><code id="jsonFilePath">—</code></dd>
+              </div>
+              <div>
+                <dt>CSV Ledger File</dt>
+                <dd><code id="csvFilePath">—</code></dd>
+              </div>
+              <div>
+                <dt>Last Saved Timestamp</dt>
+                <dd id="lastSavedAt">—</dd>
+              </div>
+            </dl>
+
+            <div class="form-actions">
+              <button class="btn btn-primary" id="manualSaveBtn" type="button">Save All Records Now</button>
+              <a class="btn btn-secondary" href="/api/records/export/json" download="hotel-records.json">Download JSON</a>
+              <a class="btn btn-secondary" href="/api/records/export/csv" download="reservations-log.csv">Download CSV</a>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3>Live File Snapshot (JSON Preview)</h3>
+            <pre class="code-preview" id="jsonPreviewBox">Loading saved file preview...</pre>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- RESERVATION MODAL -->
+  <div class="modal-backdrop" id="reservationModal" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="resModalTitle">
+      <div class="modal-header">
+        <h2 id="resModalTitle">New Room Reservation</h2>
+        <button class="icon-btn" id="closeResModalBtn" type="button" aria-label="Close">&times;</button>
+      </div>
+      <form id="reservationForm" class="modal-body">
+        <input type="hidden" id="resEditId">
+
+        <div class="form-row">
+          <label>
+            Room
+            <select id="resRoomSelect" required></select>
+          </label>
+          <label>
+            Number of Guests
+            <input id="resGuests" type="number" min="1" max="4" value="1" required>
+          </label>
+        </div>
+
+        <div class="form-row">
+          <label>
+            Guest Full Name *
+            <input id="resGuestName" type="text" required placeholder="e.g. Aarav Sharma">
+          </label>
+          <label>
+            Phone Number
+            <input id="resGuestPhone" type="tel" placeholder="+1 555-0199">
+          </label>
+        </div>
+
+        <div class="form-row">
+          <label>
+            Guest Email
+            <input id="resGuestEmail" type="email" placeholder="guest@example.com">
+          </label>
+          <label>
+            Promo Code (optional)
+            <input id="resPromoCode" type="text" placeholder="WEEKEND10 / VIP20">
+          </label>
+        </div>
+
+        <div class="form-row">
+          <label>
+            Check-In Date *
+            <input id="resCheckIn" type="date" required>
+          </label>
+          <label>
+            Check-Out Date *
+            <input id="resCheckOut" type="date" required>
+          </label>
+        </div>
+
+        <div class="extras-fieldset">
+          <span class="field-label">Add-On Services</span>
+          <div class="extras-checklist" id="resExtrasList"></div>
+        </div>
+
+        <div class="form-row">
+          <label>
+            Custom Fee ($)
+            <input id="resCustomFee" type="number" min="0" step="0.01" value="0">
+          </label>
+          <label>
+            Discount (%)
+            <input id="resDiscount" type="number" min="0" max="50" step="1" value="0">
+          </label>
+        </div>
+
+        <label>
+          Notes / Special Requests
+          <textarea id="resNotes" rows="2" placeholder="High floor, late arrival, dietary preferences..."></textarea>
+        </label>
+
+        <label class="checkbox-inline" id="immediateCheckInWrap">
+          <input id="resImmediateCheckIn" type="checkbox">
+          <span>Check in immediately upon booking (mark room Occupied)</span>
+        </label>
+
+        <div class="modal-bill-preview" id="resBillPreview"></div>
+
+        <div class="modal-footer">
+          <button class="btn btn-secondary" id="cancelResModalBtn" type="button">Cancel</button>
+          <button class="btn btn-primary" id="submitResBtn" type="submit">Confirm Reservation</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- INVOICE / BILL DETAILS MODAL -->
+  <div class="modal-backdrop" id="invoiceModal" hidden>
+    <div class="modal modal-sm" role="dialog" aria-modal="true" aria-labelledby="invoiceModalTitle">
+      <div class="modal-header">
+        <h2 id="invoiceModalTitle">Guest Invoice</h2>
+        <button class="icon-btn" id="closeInvoiceModalBtn" type="button" aria-label="Close">&times;</button>
+      </div>
+      <div class="modal-body" id="invoiceModalBody"></div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="printModalInvoiceBtn" type="button">Print Receipt</button>
+        <button class="btn btn-primary" id="closeInvoiceOkBtn" type="button">Done</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+  <script src="/app.js"></script>
+</body>
+</html>
